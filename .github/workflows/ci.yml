@@ -44,13 +44,6 @@ jobs:
         working-directory: go-zk-verifier
         run: make build
 
-      - name: Set up lib/
-        working-directory: go-zk-verifier
-        run: |
-          mkdir -p lib
-          DYLIB=$(find rust/target/release/build -name "libwitnesscalc_rs256.dylib" -path "*/package/lib/*" | head -1)
-          cp "$DYLIB" lib/
-
       - name: Download verifying key
         working-directory: go-zk-verifier
         run: make download-keys
