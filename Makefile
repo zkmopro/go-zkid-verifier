@@ -6,11 +6,7 @@ UNAME_M  := $(shell uname -m)
 ifeq ($(UNAME_S),Darwin)
     DYLIB_EXT    := dylib
     LD_PATH_VAR  := DYLD_LIBRARY_PATH
-    ifeq ($(UNAME_M),arm64)
-        RUST_TARGET  := aarch64-apple-darwin
-    else
-        RUST_TARGET  := x86_64-apple-darwin
-    endif
+    RUST_TARGET  := aarch64-apple-darwin
     RUST_OUT_DIR := $(RUST_DIR)/target/release
 else
     DYLIB_EXT    := so

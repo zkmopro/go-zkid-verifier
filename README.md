@@ -18,7 +18,6 @@ CGO selects the correct library directory per platform at compile time:
 | Platform | CGO tag | Library directory |
 |---|---|---|
 | macOS Apple Silicon | `darwin,arm64` | `lib/aarch64-apple-darwin/` |
-| macOS Intel | `darwin,amd64` | `lib/x86_64-apple-darwin/` |
 | Linux x86_64 | `linux` | `lib/x86_64-unknown-linux-gnu/` |
 
 ## Prerequisites
@@ -59,7 +58,6 @@ make build
 Detects the current platform, runs `cargo build --release`, and copies artifacts into `lib/<target>/`:
 
 - macOS arm64 → `lib/aarch64-apple-darwin/`
-- macOS x86_64 → `lib/x86_64-apple-darwin/`
 - Linux x86_64 → `lib/x86_64-unknown-linux-gnu/`
 
 **Cross-compile for Linux from macOS** (requires Docker):
@@ -141,9 +139,6 @@ GitHub Actions runs on both `macos-latest` and `ubuntu-latest` on every push and
 .
 ├── lib/
 │   ├── aarch64-apple-darwin/       # macOS Apple Silicon (gitignored)
-│   │   ├── libzk_verifier.a
-│   │   └── libwitnesscalc_rs256.dylib
-│   ├── x86_64-apple-darwin/        # macOS Intel (gitignored)
 │   │   ├── libzk_verifier.a
 │   │   └── libwitnesscalc_rs256.dylib
 │   └── x86_64-unknown-linux-gnu/   # Linux x86_64 (gitignored)
