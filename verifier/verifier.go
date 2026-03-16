@@ -1,7 +1,9 @@
 package verifier
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/../lib -lzk_verifier -lwitnesscalc_rs256 -lm -lc++
+#cgo LDFLAGS: -L${SRCDIR}/../lib -lzk_verifier -lwitnesscalc_rs256 -lm
+#cgo darwin LDFLAGS: -lc++
+#cgo linux LDFLAGS: -lstdc++
 #include <stdint.h>
 #include <stdlib.h>
 

@@ -8,7 +8,11 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout go-zk-verifier
@@ -23,6 +27,10 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install C++ toolchain (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y g++ libstdc++-12-dev
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
