@@ -1,7 +1,7 @@
 package verifier
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/../rust/target/release -lzk_verifier -lm -lc++
+#cgo LDFLAGS: -L${SRCDIR}/../lib -lzk_verifier -lwitnesscalc_rs256 -lm -lc++
 #include <stdint.h>
 #include <stdlib.h>
 
