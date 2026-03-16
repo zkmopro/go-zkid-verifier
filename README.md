@@ -6,24 +6,31 @@ A Go package that verifies RS256 JWT zero-knowledge proofs via Rust FFI. The ZK 
 
 ```
 Go (verifier package)
-  └── CGO → libzk_verifier.a (Rust staticlib)
-               └── ecdsa-spartan2 (Spartan2 ZK circuit)
-                     └── libwitnesscalc_rs256.{dylib,so} (C++ witness generator)
+  └── CGO → lib/<target>/libzk_verifier.a (Rust staticlib)
+                └── ecdsa-spartan2 (Spartan2 ZK circuit)
+                      └── lib/<target>/libwitnesscalc_rs256.{dylib,so} (C++ witness generator)
 ```
 
 The Rust layer exposes a C-compatible FFI that Go calls via CGO. The verifier reads pre-generated proof artifacts from a `keys/` directory and verifies them using Spartan2's ZK-SNARK verifier.
+
+CGO selects the correct library directory per platform at compile time:
+
+| Platform | CGO tag | Library directory |
+|---|---|---|
+| macOS Apple Silicon | `darwin,arm64` | `lib/aarch64-apple-darwin/` |
+| macOS Intel | `darwin,amd64` | `lib/x86_64-apple-darwin/` |
+| Linux x86_64 | `linux` | `lib/x86_64-unknown-linux-gnu/` |
 
 ## Prerequisites
 
 - Go 1.22+
 - Rust (stable)
-- macOS or Linux (amd64 / arm64)
+- macOS or Linux
   - macOS: Xcode Command Line Tools (`xcode-select --install`)
-  - Linux: `g++` and `libstdc++` (`sudo apt-get install -y g++ libstdc++-12-dev`)
-
-The `lib/` directory must contain:
-- `libzk_verifier.a` — built from `rust/`
-- `libwitnesscalc_rs256.dylib` (macOS) or `libwitnesscalc_rs256.so` (Linux) — built as a side effect of the Rust build
+  - Linux: `g++`, `libstdc++`, `nasm`, `libgmp-dev`
+    ```bash
+    sudo apt-get install -y g++ libstdc++-12-dev nasm libgmp-dev
+    ```
 
 ## Setup
 
@@ -49,7 +56,29 @@ cd go-zkid-verifier
 make build
 ```
 
-This runs `cargo build --release` and copies `libzk_verifier.a` and `libwitnesscalc_rs256.{dylib,so}` into `lib/`.
+Detects the current platform, runs `cargo build --release`, and copies artifacts into `lib/<target>/`:
+
+- macOS arm64 → `lib/aarch64-apple-darwin/`
+- macOS x86_64 → `lib/x86_64-apple-darwin/`
+- Linux x86_64 → `lib/x86_64-unknown-linux-gnu/`
+
+**Cross-compile for Linux from macOS** (requires Docker):
+
+```bash
+# Install tools (once)
+cargo install cross --git https://github.com/cross-rs/cross
+
+# Build — mounts the zkID directory into the cross container
+CROSS_CONTAINER_OPTS="-v /path/to/zkID:/path/to/zkID" \
+  cross build --target x86_64-unknown-linux-gnu --release
+
+# Copy artifacts
+mkdir -p lib/x86_64-unknown-linux-gnu
+cp rust/target/x86_64-unknown-linux-gnu/release/libzk_verifier.a lib/x86_64-unknown-linux-gnu/
+cp $(find rust/target/x86_64-unknown-linux-gnu/release/build -name "libwitnesscalc_rs256.so" -path "*/package/lib/*" | head -1) lib/x86_64-unknown-linux-gnu/
+```
+
+`rust/Cross.toml` configures the cross-compilation container with `nasm` and `libgmp-dev` pre-installed.
 
 ### 3. Download the verifying key
 
@@ -75,31 +104,32 @@ valid, err := verifier.Verify(baseDir)
 ### CLI
 
 ```bash
-# macOS — run from the directory containing keys/
-DYLD_LIBRARY_PATH=./lib ./zk-verifier
+# Run from the directory containing keys/
+# macOS
+DYLD_LIBRARY_PATH=./lib/aarch64-apple-darwin ./zk-verifier
 
 # Linux
-LD_LIBRARY_PATH=./lib ./zk-verifier
+LD_LIBRARY_PATH=./lib/x86_64-unknown-linux-gnu ./zk-verifier
 ```
 
 ## Makefile targets
 
 | Target | Description |
 |---|---|
-| `make build` | Build Rust library + Go binary |
+| `make build` | Build Rust library + Go binary for current platform |
 | `make download-keys` | Download verifying key from R2 into `keys/` |
 | `make verify` | Run the verifier against `./keys/` |
 | `make test` | Run Go tests |
 | `make clean` | Remove build artifacts |
 
-The Makefile auto-detects the OS and sets `DYLD_LIBRARY_PATH` (macOS) or `LD_LIBRARY_PATH` (Linux) and the correct shared library extension (`.dylib` / `.so`).
+The Makefile auto-detects the OS and architecture via `uname -s`/`uname -m`, sets the correct `RUST_TARGET`, and uses `DYLD_LIBRARY_PATH` (macOS) or `LD_LIBRARY_PATH` (Linux).
 
 ## CI
 
 GitHub Actions runs on both `macos-latest` and `ubuntu-latest` on every push and pull request to `main`:
 
 1. Checks out this repo and clones `zkID` at commit `cc21edd` as siblings
-2. Installs `g++` / `libstdc++` on Linux
+2. Installs `g++`, `nasm`, `libgmp-dev` on Linux
 3. Builds the Rust static library and Go binary (`make build`)
 4. Downloads the verifying key from R2 (`make download-keys`)
 5. Runs the test suite (`make test`)
@@ -109,20 +139,28 @@ GitHub Actions runs on both `macos-latest` and `ubuntu-latest` on every push and
 
 ```
 .
-├── lib/                        # Built libraries (gitignored, populated by make build)
-│   ├── libzk_verifier.a
-│   └── libwitnesscalc_rs256.{dylib,so}
-├── keys/                       # Proof artifacts (gitignored, populated by make download-keys)
+├── lib/
+│   ├── aarch64-apple-darwin/       # macOS Apple Silicon (gitignored)
+│   │   ├── libzk_verifier.a
+│   │   └── libwitnesscalc_rs256.dylib
+│   ├── x86_64-apple-darwin/        # macOS Intel (gitignored)
+│   │   ├── libzk_verifier.a
+│   │   └── libwitnesscalc_rs256.dylib
+│   └── x86_64-unknown-linux-gnu/   # Linux x86_64 (gitignored)
+│       ├── libzk_verifier.a
+│       └── libwitnesscalc_rs256.so
+├── keys/                           # Proof artifacts (gitignored)
 │   ├── rs256_proof.bin
 │   └── rs256_verifying.key
-├── rust/                       # Rust FFI wrapper
-│   ├── Cargo.toml              # Depends on ecdsa-spartan2 via path (../../zkID/...)
-│   └── src/lib.rs              # C-compatible FFI: zk_rs256_verify, zk_last_error
-├── verifier/                   # Go package
-│   ├── verifier.go             # CGO bindings (platform-specific: -lc++ / -lstdc++)
+├── rust/
+│   ├── Cargo.toml                  # Path dep: ../../zkID/wallet-unit-poc/ecdsa-spartan2
+│   ├── Cross.toml                  # cross config: nasm + libgmp-dev pre-build
+│   └── src/lib.rs                  # C FFI: zk_rs256_verify, zk_last_error
+├── verifier/
+│   ├── verifier.go                 # CGO bindings (per-platform -L flags)
 │   └── verifier_test.go
 ├── scripts/
-│   └── download_keys.sh        # Downloads verifying key from R2
-├── main.go                     # CLI entry point
+│   └── download_keys.sh            # Downloads verifying key from R2
+├── main.go
 └── .github/workflows/ci.yml
 ```

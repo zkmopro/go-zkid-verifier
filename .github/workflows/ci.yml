@@ -30,7 +30,7 @@ jobs:
 
       - name: Install C++ toolchain (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get install -y g++ libstdc++-12-dev
+        run: sudo apt-get install -y g++ libstdc++-12-dev nasm libgmp-dev
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
