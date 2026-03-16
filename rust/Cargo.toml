@@ -1,0 +1,12 @@
+[package]
+name = "zk_verifier"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "zk_verifier"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+sha2 = "0.10"
+ecdsa-spartan2 = { path = "../../zkID/wallet-unit-poc/ecdsa-spartan2" }
