@@ -22,6 +22,10 @@ CGO selects the correct library directory per platform at compile time:
 
 ## Prerequisites
 
+**Challenge server only:** Go 1.22+ (no Rust or native toolchain needed).
+
+**Full build (including ZK verifier):**
+
 - Go 1.22+
 - Rust (stable)
 - macOS or Linux
@@ -35,7 +39,7 @@ CGO selects the correct library directory per platform at compile time:
 
 ### 1. Clone dependencies
 
-Both this repo and [zkID](https://github.com/zkmopro/zkID) must be checked out as siblings:
+Both this repo and [zkID](https://github.com/zkmopro/zkID) must be checked out as siblings (only needed for the verifier):
 
 ```
 parent/
@@ -49,9 +53,16 @@ git clone https://github.com/zkmopro/zkID.git
 cd go-zkid-verifier
 ```
 
-### 2. Build the Rust library
+### 2. Build
 
 ```bash
+# Challenge server only (no Rust required)
+make build-server
+
+# Verifier only (requires Rust + native libs)
+make build-verifier
+
+# Both
 make build
 ```
 
@@ -93,9 +104,11 @@ The challenge server generates random nonces for the ZK identity verification fl
 ### Start the server
 
 ```bash
-go run . serve
-# or with custom port:
-PORT=9090 go run . serve
+make serve
+# or directly:
+go run ./cmd/server
+# with custom port:
+PORT=9090 go run ./cmd/server
 ```
 
 ### API Endpoints
@@ -150,41 +163,65 @@ valid, err := verifier.Verify(baseDir)
 ### CLI
 
 ```bash
+# Build
+make build-verifier
+
 # Run from the directory containing keys/
 # macOS
-DYLD_LIBRARY_PATH=./lib/aarch64-apple-darwin ./zk-verifier
+DYLD_LIBRARY_PATH=./lib/aarch64-apple-darwin ./zkid-verifier
 
 # Linux
-LD_LIBRARY_PATH=./lib/x86_64-unknown-linux-gnu ./zk-verifier
+LD_LIBRARY_PATH=./lib/x86_64-unknown-linux-gnu ./zkid-verifier
 ```
 
 ## Makefile targets
 
 | Target | Description |
 |---|---|
-| `make build` | Build Rust library + Go binary for current platform |
+| `make build` | Build both server and verifier |
+| `make build-server` | Build challenge server (Go only, no Rust needed) |
+| `make build-verifier` | Build Rust library + verifier binary |
+| `make serve` | Build and run the challenge server |
+| `make test` | Run all tests |
+| `make test-challenge` | Run challenge server tests (Go only) |
+| `make test-verifier` | Run verifier tests (requires Rust libs + keys) |
 | `make download-keys` | Download verifying key from R2 into `keys/` |
-| `make verify` | Run the verifier against `./keys/` |
-| `make test` | Run Go tests |
+| `make verify` | Build and run the verifier against `./keys/` |
 | `make clean` | Remove build artifacts |
 
 The Makefile auto-detects the OS and architecture via `uname -s`/`uname -m`, sets the correct `RUST_TARGET`, and uses `DYLD_LIBRARY_PATH` (macOS) or `LD_LIBRARY_PATH` (Linux).
 
 ## CI
 
-GitHub Actions runs on both `macos-latest` and `ubuntu-latest` on every push and pull request to `main`:
+GitHub Actions runs two independent jobs on every push and pull request to `main`:
 
+**Challenge server** (Go only, fast):
+1. Installs Go
+2. Builds the challenge server (`make build-server`)
+3. Runs challenge tests (`make test-challenge`)
+
+**Verifier** (macOS + Linux matrix):
 1. Checks out this repo and clones `zkID` at commit `cc21edd` as siblings
 2. Installs `g++`, `nasm`, `libgmp-dev` on Linux
-3. Builds the Rust static library and Go binary (`make build`)
+3. Builds the verifier (`make build-verifier`)
 4. Downloads the verifying key from R2 (`make download-keys`)
-5. Runs the test suite (`make test`)
+5. Runs verifier tests (`make test-verifier`)
 6. Runs the verifier (`make verify`)
 
 ## Project structure
 
 ```
 .
+├── cmd/
+│   ├── server/main.go              # Challenge server entry point (pure Go)
+│   └── verifier/main.go            # ZK verifier CLI entry point (CGO)
+├── challenge/
+│   ├── challenge.go                # Challenge store + TBS hash verification
+│   ├── challenge_test.go
+│   └── handler.go                  # HTTP handlers
+├── verifier/
+│   ├── verifier.go                 # CGO bindings (per-platform -L flags)
+│   └── verifier_test.go
 ├── lib/
 │   ├── aarch64-apple-darwin/       # macOS Apple Silicon (gitignored)
 │   │   ├── libzk_verifier.a
@@ -199,11 +236,7 @@ GitHub Actions runs on both `macos-latest` and `ubuntu-latest` on every push and
 │   ├── Cargo.toml                  # Path dep: ../../zkID/wallet-unit-poc/ecdsa-spartan2
 │   ├── Cross.toml                  # cross config: nasm + libgmp-dev pre-build
 │   └── src/lib.rs                  # C FFI: zk_rs256_verify, zk_last_error
-├── verifier/
-│   ├── verifier.go                 # CGO bindings (per-platform -L flags)
-│   └── verifier_test.go
 ├── scripts/
 │   └── download_keys.sh            # Downloads verifying key from R2
-├── main.go
 └── .github/workflows/ci.yml
 ```

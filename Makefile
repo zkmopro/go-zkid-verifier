@@ -19,7 +19,8 @@ LIB_DIR  := $(CURDIR)/lib/$(RUST_TARGET)
 RUST_LIB := $(LIB_DIR)/libzk_verifier.a
 BASE_DIR ?= $(CURDIR)
 
-.PHONY: all build test verify download-keys clean
+.PHONY: all build build-server build-verifier test test-challenge test-verifier \
+        verify serve download-keys clean
 
 all: build
 
@@ -33,14 +34,27 @@ endif
 	cp $(RUST_OUT_DIR)/libzk_verifier.a $(LIB_DIR)/
 	cp $(shell find $(RUST_OUT_DIR)/build -name "libwitnesscalc_rs256.$(DYLIB_EXT)" -path "*/package/lib/*" | head -1) $(LIB_DIR)/
 
-build: $(RUST_LIB)
-	go build -o zk-verifier .
+build-server:
+	CGO_ENABLED=0 go build -o zkid-server ./cmd/server
 
-test: $(RUST_LIB)
+build-verifier: $(RUST_LIB)
+	go build -o zkid-verifier ./cmd/verifier
+
+build: build-server build-verifier
+
+test-challenge:
+	go test ./challenge/ -v
+
+test-verifier: $(RUST_LIB)
 	$(LD_PATH_VAR)=$(LIB_DIR) ZK_BASE_DIR=$(BASE_DIR) go test ./verifier/ -v
 
-verify: $(RUST_LIB)
-	$(LD_PATH_VAR)=$(LIB_DIR) RUST_LOG=info go run main.go
+test: test-challenge test-verifier
+
+verify: build-verifier
+	$(LD_PATH_VAR)=$(LIB_DIR) RUST_LOG=info ./zkid-verifier
+
+serve: build-server
+	./zkid-server
 
 download-keys:
 	bash scripts/download_keys.sh
@@ -48,4 +62,4 @@ download-keys:
 clean:
 	cd $(RUST_DIR) && cargo clean
 	go clean ./...
-	rm -f zk-verifier
+	rm -f zkid-server zkid-verifier

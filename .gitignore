@@ -1,2 +1,5 @@
 target/
 .DS_Store
+zkid-server
+zkid-verifier
+zk-verifier

@@ -7,7 +7,26 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
+  challenge-server:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build challenge server
+        run: make build-server
+
+      - name: Test challenge package
+        run: make test-challenge
+
+  verifier:
     strategy:
       matrix:
         os: [macos-latest, ubuntu-latest]
@@ -48,17 +67,17 @@ jobs:
           go-version-file: go-zk-verifier/go.mod
           cache: true
 
-      - name: Build
+      - name: Build verifier
         working-directory: go-zk-verifier
-        run: make build
+        run: make build-verifier
 
       - name: Download verifying key
         working-directory: go-zk-verifier
         run: make download-keys
 
-      - name: Test
+      - name: Test verifier
         working-directory: go-zk-verifier
-        run: make test
+        run: make test-verifier
 
       - name: Verify
         working-directory: go-zk-verifier
