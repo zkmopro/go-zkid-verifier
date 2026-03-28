@@ -86,7 +86,55 @@ make download-keys
 
 Downloads `keys/rs256_verifying.key` from Cloudflare R2.
 
-## Usage
+## Challenge Server
+
+The challenge server generates random nonces for the ZK identity verification flow. A client fetches a challenge, signs it with their CDC card via HiPKI, generates a ZK proof, and submits the proof back for verification.
+
+### Start the server
+
+```bash
+go run . serve
+# or with custom port:
+PORT=9090 go run . serve
+```
+
+### API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST /challenge` | Generate a 32-byte random challenge nonce | Returns `{challenge_id, challenge_bytes, expires_at}` |
+| `GET /challenge/{id}` | Retrieve a challenge by ID | 404 if expired (5-min TTL) or not found |
+| `POST /verify` | Verify proof against a challenge | Compares `tbs_hash_bits` against `SHA256(challenge_bytes)` |
+
+### Verify endpoint
+
+The `/verify` endpoint accepts:
+```json
+{
+  "challenge_id": "<hex string>",
+  "tbs_hash_bits": [0, 1, 0, 1, ...],
+  "nullifier": "<string>"
+}
+```
+
+`tbs_hash_bits` is a 256-element array of 0/1 integers representing the SHA-256 hash in big-endian bit order (matching the circuit's `tbs_hash[256]` output). The server reconstructs the SHA-256 digest from these bits and compares against `SHA256(challenge_bytes)`.
+
+### Example flow
+
+```bash
+# 1. Get a challenge
+CHALLENGE=$(curl -s -X POST http://localhost:8080/challenge)
+echo $CHALLENGE | jq .
+
+# 2. (Client signs challenge with HiPKI, generates ZK proof)
+
+# 3. Submit proof for verification
+curl -s -X POST http://localhost:8080/verify \
+  -H "Content-Type: application/json" \
+  -d '{"challenge_id":"...", "tbs_hash_bits":[...], "nullifier":"..."}'
+```
+
+## Proof Verification
 
 ### As a Go package
 
