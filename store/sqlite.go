@@ -113,19 +113,16 @@ func (s *SQLiteStore) GetChallenge(ctx context.Context, id string) (*Challenge, 
 		return nil, fmt.Errorf("scan challenge: %w", err)
 	}
 
-	if len(rawBytes) == 16 {
-		copy(c.Bytes[:], rawBytes)
+	if len(rawBytes) != 16 {
+		return nil, fmt.Errorf("corrupt challenge: bytes_raw has %d bytes, want 16", len(rawBytes))
 	}
+	copy(c.Bytes[:], rawBytes)
 
-	t, err := time.Parse(time.RFC3339, expiresAtStr)
-	if err != nil {
-		// fallback for SQLite datetime format
-		t, err = time.Parse("2006-01-02 15:04:05", expiresAtStr)
-		if err != nil {
-			return nil, fmt.Errorf("parse expires_at: %w", err)
-		}
+	expiresAt, parseErr := parseTime(expiresAtStr)
+	if parseErr != nil {
+		return nil, fmt.Errorf("parse expires_at: %w", parseErr)
 	}
-	c.ExpiresAt = t
+	c.ExpiresAt = expiresAt
 
 	return &c, nil
 }
@@ -151,12 +148,9 @@ func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challengeI
 	}
 
 	// Check expiry
-	expiresAt, err := time.Parse(time.RFC3339, expiresAtStr)
+	expiresAt, err := parseTime(expiresAtStr)
 	if err != nil {
-		expiresAt, err = time.Parse("2006-01-02 15:04:05", expiresAtStr)
-		if err != nil {
-			return fmt.Errorf("parse expires_at: %w", err)
-		}
+		return fmt.Errorf("parse expires_at: %w", err)
 	}
 	if time.Now().After(expiresAt) {
 		return ErrChallengeExpired
@@ -214,16 +208,27 @@ func (s *SQLiteStore) GetVerification(ctx context.Context, nullifier string) (*V
 		rec.IDProof = &idProof.String
 	}
 
-	t, err := time.Parse("2006-01-02 15:04:05", verifiedAtStr)
-	if err != nil {
-		t, err = time.Parse(time.RFC3339, verifiedAtStr)
-		if err != nil {
-			return nil, fmt.Errorf("parse verified_at: %w", err)
-		}
+	verifiedAt, parseErr := parseTime(verifiedAtStr)
+	if parseErr != nil {
+		return nil, fmt.Errorf("parse verified_at: %w", parseErr)
 	}
-	rec.VerifiedAt = t
+	rec.VerifiedAt = verifiedAt
 
 	return &rec, nil
+}
+
+// parseTime parses a time string from SQLite, always returning UTC.
+// Handles both RFC3339 and SQLite's default datetime format.
+func parseTime(s string) (time.Time, error) {
+	t, err := time.Parse(time.RFC3339, s)
+	if err == nil {
+		return t.UTC(), nil
+	}
+	t, err = time.Parse("2006-01-02 15:04:05", s)
+	if err == nil {
+		return t.UTC(), nil
+	}
+	return time.Time{}, fmt.Errorf("unrecognized time format: %q", s)
 }
 
 // isUniqueViolation checks if the error is a SQLite UNIQUE constraint violation.

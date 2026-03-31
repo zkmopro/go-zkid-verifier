@@ -73,6 +73,7 @@ type VerifyFailResponse struct {
 }
 
 func (h *Handler) VerifyProof(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024) // 64KB limit
 	var req VerifyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
