@@ -38,8 +38,8 @@ func TestCreateChallenge(t *testing.T) {
 	if c.ID == "" {
 		t.Fatal("challenge_id is empty")
 	}
-	if c.BytesHex == "" || len(c.BytesHex) != 64 {
-		t.Fatalf("challenge_bytes should be 64 hex chars, got %d: %s", len(c.BytesHex), c.BytesHex)
+	if c.BytesHex == "" || len(c.BytesHex) != 31 {
+		t.Fatalf("challenge_bytes should be 31 hex chars, got %d: %s", len(c.BytesHex), c.BytesHex)
 	}
 	if c.ExpiresAt.IsZero() {
 		t.Fatal("expires_at is zero")
@@ -238,7 +238,7 @@ func TestConcurrentChallengeCreation(t *testing.T) {
 
 func TestTBSHashBitsFormat(t *testing.T) {
 	// Verify our bit conversion matches standard SHA-256
-	var challenge [32]byte
+	var challenge [16]byte
 	for i := range challenge {
 		challenge[i] = byte(i)
 	}
