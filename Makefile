@@ -43,7 +43,7 @@ build-verifier: $(RUST_LIB)
 build: build-server build-verifier
 
 test-challenge:
-	go test ./challenge/ -v
+	go test ./store/ ./challenge/ -v
 
 test-verifier: $(RUST_LIB)
 	$(LD_PATH_VAR)=$(LIB_DIR) ZK_BASE_DIR=$(BASE_DIR) go test ./verifier/ -v
