@@ -1,76 +1,11 @@
 package challenge
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
-	"sync"
 	"time"
 )
 
 const DefaultTTL = 5 * time.Minute
-
-type Challenge struct {
-	ID        string    `json:"challenge_id"`
-	Bytes     [16]byte  `json:"-"`
-	BytesHex  string    `json:"challenge_bytes"`
-	ExpiresAt time.Time `json:"expires_at"`
-}
-
-type Store struct {
-	mu         sync.RWMutex
-	challenges map[string]*Challenge
-	ttl        time.Duration
-}
-
-func NewStore(ttl time.Duration) *Store {
-	return &Store{
-		challenges: make(map[string]*Challenge),
-		ttl:        ttl,
-	}
-}
-
-func (s *Store) Create() (*Challenge, error) {
-	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return nil, fmt.Errorf("generate nonce: %w", err)
-	}
-	nonce[15] &= 0xF0 // zero last nibble so BytesHex is exactly 31 hex chars
-
-	idHash := sha256.Sum256(nonce[:])
-	id := hex.EncodeToString(idHash[:16])
-
-	c := &Challenge{
-		ID:        id,
-		Bytes:     nonce,
-		BytesHex:  hex.EncodeToString(nonce[:])[:31],
-		ExpiresAt: time.Now().Add(s.ttl),
-	}
-
-	s.mu.Lock()
-	s.challenges[id] = c
-	s.mu.Unlock()
-
-	return c, nil
-}
-
-func (s *Store) Get(id string) (*Challenge, bool) {
-	s.mu.RLock()
-	c, ok := s.challenges[id]
-	s.mu.RUnlock()
-
-	if !ok {
-		return nil, false
-	}
-	if time.Now().After(c.ExpiresAt) {
-		s.mu.Lock()
-		delete(s.challenges, id)
-		s.mu.Unlock()
-		return nil, false
-	}
-	return c, true
-}
 
 // TBSHashBitsFromChallenge computes SHA256(challenge_bytes) and returns
 // 256 big-endian bits matching the circuit's tbs_hash output format.
