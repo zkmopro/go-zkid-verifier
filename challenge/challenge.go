@@ -13,7 +13,7 @@ const DefaultTTL = 5 * time.Minute
 
 type Challenge struct {
 	ID        string    `json:"challenge_id"`
-	Bytes     [32]byte  `json:"-"`
+	Bytes     [16]byte  `json:"-"`
 	BytesHex  string    `json:"challenge_bytes"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
@@ -32,10 +32,11 @@ func NewStore(ttl time.Duration) *Store {
 }
 
 func (s *Store) Create() (*Challenge, error) {
-	var nonce [32]byte
+	var nonce [16]byte
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return nil, fmt.Errorf("generate nonce: %w", err)
 	}
+	nonce[15] &= 0xF0 // zero last nibble so BytesHex is exactly 31 hex chars
 
 	idHash := sha256.Sum256(nonce[:])
 	id := hex.EncodeToString(idHash[:16])
@@ -43,7 +44,7 @@ func (s *Store) Create() (*Challenge, error) {
 	c := &Challenge{
 		ID:        id,
 		Bytes:     nonce,
-		BytesHex:  hex.EncodeToString(nonce[:]),
+		BytesHex:  hex.EncodeToString(nonce[:])[:31],
 		ExpiresAt: time.Now().Add(s.ttl),
 	}
 
@@ -73,7 +74,7 @@ func (s *Store) Get(id string) (*Challenge, bool) {
 
 // TBSHashBitsFromChallenge computes SHA256(challenge_bytes) and returns
 // 256 big-endian bits matching the circuit's tbs_hash output format.
-func TBSHashBitsFromChallenge(challengeBytes [32]byte) [256]int {
+func TBSHashBitsFromChallenge(challengeBytes [16]byte) [256]int {
 	digest := sha256.Sum256(challengeBytes[:])
 	var bits [256]int
 	for i := 0; i < 32; i++ {
@@ -86,7 +87,7 @@ func TBSHashBitsFromChallenge(challengeBytes [32]byte) [256]int {
 }
 
 // VerifyTBSHash checks if the provided tbs_hash_bits match SHA256(challenge_bytes).
-func VerifyTBSHash(challengeBytes [32]byte, tbsHashBits []int) bool {
+func VerifyTBSHash(challengeBytes [16]byte, tbsHashBits []int) bool {
 	if len(tbsHashBits) != 256 {
 		return false
 	}
