@@ -3,3 +3,5 @@ target/
 zkid-server
 zkid-verifier
 zk-verifier
+/server
+*.db
