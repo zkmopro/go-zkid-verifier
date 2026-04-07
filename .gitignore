@@ -6,3 +6,4 @@ zk-verifier
 keys/
 /server
 *.db
+.env

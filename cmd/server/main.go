@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/zkmopro/go-zkid-verifier/challenge"
+	"github.com/zkmopro/go-zkid-verifier/fido"
 	"github.com/zkmopro/go-zkid-verifier/store"
 )
 
@@ -29,9 +30,11 @@ func main() {
 	defer s.Close()
 
 	handler := challenge.NewHandler(s)
+	fidoHandler := fido.NewHandler()
 
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
+	fidoHandler.RegisterRoutes(mux)
 
 	fmt.Printf("=== zkID Challenge Server ===\n")
 	fmt.Printf("Listening on %s\n", addr)
@@ -40,7 +43,9 @@ func main() {
 	fmt.Printf("  POST /challenge              - Generate a new challenge\n")
 	fmt.Printf("  GET  /challenge/{id}         - Retrieve a challenge\n")
 	fmt.Printf("  POST /verify                 - Verify proof against challenge\n")
-	fmt.Printf("  GET  /users/{nullifier}/status - Query verification status\n\n")
+	fmt.Printf("  GET  /users/{nullifier}/status - Query verification status\n")
+	fmt.Printf("  POST /fido/sp-ticket         - Get FIDO SP ticket (requires id_num)\n")
+	fmt.Printf("  POST /fido/ath-result        - Poll auth/sign result (requires sp_ticket)\n\n")
 
 	if err := http.ListenAndServe(addr, corsMiddleware(logMiddleware(mux))); err != nil {
 		log.Fatalf("server error: %v", err)
