@@ -31,7 +31,7 @@ func init() {
 
 const baseURL = "https://fidoapi-test.moi.gov.tw"
 
-func getSpServiceID() string { return os.Getenv("FIDO_SP_SERVICE_ID") }
+func getSpServiceID() string  { return os.Getenv("FIDO_SP_SERVICE_ID") }
 func getAESKeyBase64() string { return os.Getenv("FIDO_AES_KEY") }
 
 // SpTicketParams holds all parameters needed to call getSpTicket.
@@ -163,10 +163,10 @@ type getAthOrSignResultRequest struct {
 
 // SignResult holds the successful result fields (present when ErrorCode == "0").
 type SignResult struct {
-	HashedIDNum      *string  `json:"hashed_id_num,omitempty"`
-	SignedResponse   *string  `json:"signed_response,omitempty"`
-	SignedResponseSet []string `json:"signed_response_set,omitempty"`
-	SigningCertificate *string `json:"signing_certificate,omitempty"`
+	HashedIDNum        *string `json:"hashed_id_num,omitempty"`
+	SignedResponse     *string `json:"signed_response,omitempty"`
+	IdpChecksum        *string `json:"idp_checksum,omitempty"`
+	SigningCertificate *string `json:"cert,omitempty"`
 }
 
 // AthOrSignResultResponse is the top-level response from getAthOrSignResult.

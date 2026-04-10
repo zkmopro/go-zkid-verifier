@@ -87,7 +87,7 @@ func (h *Handler) GetSpTicketHandler(w http.ResponseWriter, r *http.Request) {
 		req.TimeLimit = "600"
 	}
 	if req.SignType == "" {
-		req.SignType = "PKCS#7"
+		req.SignType = "PKCS#1"
 	}
 	if req.HashAlgorithm == "" {
 		req.HashAlgorithm = "SHA256"
@@ -96,7 +96,10 @@ func (h *Handler) GetSpTicketHandler(w http.ResponseWriter, r *http.Request) {
 		req.TBSEncoding = "base64"
 	}
 	if req.SignData == "" {
-		req.SignData = "RE9DX0RJR0VTVF8xMjM0NTY3ODkw"
+		// tbs := "e775f2805fb993e05a208dbff15d1c1"
+		// req.SignData = base64.StdEncoding.EncodeToString([]byte(tbs))
+		req.SignData = "ZTc3NWYyODA1ZmI5OTNlMDVhMjA4ZGJmZjE1ZDFjMQ=="
+		// req.SignData = "RE9DX0RJR0VTVF8xMjM0NTY3ODkw"
 	}
 
 	result, err := GetSpTicket(r.Context(), SpTicketParams{
