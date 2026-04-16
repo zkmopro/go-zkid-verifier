@@ -29,7 +29,7 @@ func init() {
 	godotenv.Load() // loads .env if present; silently ignored if missing
 }
 
-const baseURL = "https://fidoapi-test.moi.gov.tw"
+const baseURL = "https://fidoapi.moi.gov.tw"
 
 func getSpServiceID() string  { return os.Getenv("FIDO_SP_SERVICE_ID") }
 func getAESKeyBase64() string { return os.Getenv("FIDO_AES_KEY") }
