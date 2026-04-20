@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS verifications (
     nullifier    TEXT    NOT NULL UNIQUE,
     id_verified  BOOLEAN NOT NULL DEFAULT 1,
     id_proof     TEXT,
+    proof_type   TEXT    NOT NULL DEFAULT 'tbs',
     verified_at  DATETIME NOT NULL DEFAULT (datetime('now')),
     challenge_id TEXT    NOT NULL,
     FOREIGN KEY (challenge_id) REFERENCES challenges(id)
@@ -127,7 +128,7 @@ func (s *SQLiteStore) GetChallenge(ctx context.Context, id string) (*Challenge, 
 	return &c, nil
 }
 
-func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challengeID string, proof *string) error {
+func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challengeID string, proof *string, proofType string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
@@ -166,9 +167,12 @@ func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challengeI
 	if proof != nil {
 		proofVal = sql.NullString{String: *proof, Valid: true}
 	}
+	if proofType == "" {
+		proofType = "tbs"
+	}
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO verifications (nullifier, id_verified, id_proof, challenge_id) VALUES (?, 1, ?, ?)`,
-		nullifier, proofVal, challengeID,
+		`INSERT INTO verifications (nullifier, id_verified, id_proof, proof_type, challenge_id) VALUES (?, 1, ?, ?, ?)`,
+		nullifier, proofVal, proofType, challengeID,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -190,14 +194,14 @@ func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challengeI
 
 func (s *SQLiteStore) GetVerification(ctx context.Context, nullifier string) (*VerificationRecord, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT nullifier, id_verified, id_proof, verified_at, challenge_id
+		`SELECT nullifier, id_verified, id_proof, proof_type, verified_at, challenge_id
 		 FROM verifications WHERE nullifier = ?`, nullifier,
 	)
 
 	var rec VerificationRecord
 	var idProof sql.NullString
 	var verifiedAtStr string
-	if err := row.Scan(&rec.Nullifier, &rec.IDVerified, &idProof, &verifiedAtStr, &rec.ChallengeID); err != nil {
+	if err := row.Scan(&rec.Nullifier, &rec.IDVerified, &idProof, &rec.ProofType, &verifiedAtStr, &rec.ChallengeID); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
