@@ -20,11 +20,8 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Build challenge server
-        run: make build-server
-
-      - name: Test challenge package
-        run: make test-challenge
+      - name: Test store (pure Go)
+        run: CGO_ENABLED=0 go test ./store/ -v
 
   verifier:
     strategy:
@@ -34,15 +31,14 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout go-zk-verifier
+      - name: Checkout go-zkid-verifier
         uses: actions/checkout@v4
         with:
-          path: go-zk-verifier
+          path: go-zkid-verifier
 
-      - name: Clone zkID at cc21edd
+      - name: Clone zkID
         run: |
           git clone https://github.com/zkmopro/zkID.git zkID
-          cd zkID && git checkout cc21edd
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -57,28 +53,32 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            go-zk-verifier/rust/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('go-zk-verifier/rust/Cargo.lock') }}
+            go-zkid-verifier/rust/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('go-zkid-verifier/rust/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go-zk-verifier/go.mod
+          go-version-file: go-zkid-verifier/go.mod
           cache: true
 
       - name: Build verifier
-        working-directory: go-zk-verifier
+        working-directory: go-zkid-verifier
         run: make build-verifier
 
-      - name: Download verifying key
-        working-directory: go-zk-verifier
+      - name: Download verifying keys
+        working-directory: go-zkid-verifier
         run: make download-keys
 
-      - name: Test verifier
-        working-directory: go-zk-verifier
+      - name: Test challenge package
+        working-directory: go-zkid-verifier
+        run: go test ./challenge/ -v
+
+      - name: Test verifier (link-verify)
+        working-directory: go-zkid-verifier
         run: make test-verifier
 
-      - name: Verify
-        working-directory: go-zk-verifier
+      - name: Verify (RS2048)
+        working-directory: go-zkid-verifier
         run: make verify
