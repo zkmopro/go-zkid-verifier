@@ -1,26 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ZIP_URL="https://github.com/zkmopro/zkID/releases/download/latest/ecdsa-spartan2-keys.zip"
+RELEASE_URL="https://github.com/zkmopro/zkID/releases/download/latest"
 KEYS_DIR="$(cd "$(dirname "$0")/.." && pwd)/keys"
-ZIP_PATH="$KEYS_DIR/ecdsa-spartan2-keys.zip"
+
+KEYS=(
+  cert_chain_rs2048_verifying.key
+  cert_chain_rs4096_verifying.key
+  device_sig_rs2048_verifying.key
+)
 
 mkdir -p "$KEYS_DIR"
 
-if [[ -f "$ZIP_PATH" ]]; then
-  echo "ecdsa-spartan2-keys.zip already exists, skipping download."
-else
-  echo "Downloading ecdsa-spartan2-keys.zip..."
-  curl -fL --progress-bar "$ZIP_URL" -o "$ZIP_PATH"
-  echo "Saved to $ZIP_PATH"
-fi
+for key in "${KEYS[@]}"; do
+  if [[ -f "$KEYS_DIR/$key" ]]; then
+    echo "$key already exists, skipping."
+    continue
+  fi
 
-UNZIP_DIR=$(mktemp -d)
-trap 'rm -rf "$UNZIP_DIR"' EXIT
+  echo "Downloading $key.gz..."
+  curl -fL --progress-bar "$RELEASE_URL/$key.gz" -o "$KEYS_DIR/$key.gz"
+  gunzip -f "$KEYS_DIR/$key.gz"
+  echo "Extracted $key"
+done
 
-unzip -o "$ZIP_PATH" -d "$UNZIP_DIR"
-cp -r "$UNZIP_DIR"/wallet-unit-poc/ecdsa-spartan2/keys/. "$KEYS_DIR/"
-echo "Keys extracted to $KEYS_DIR"
-
-rm -f "$ZIP_PATH"
-echo "Cleaned up $ZIP_PATH"
+echo "All verifying keys ready in $KEYS_DIR"
