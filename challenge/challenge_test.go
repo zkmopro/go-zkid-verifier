@@ -19,7 +19,7 @@ func setupServer(t *testing.T, ttl time.Duration) (*http.ServeMux, *store.SQLite
 		t.Fatalf("new store: %v", err)
 	}
 	t.Cleanup(func() { s.Close() })
-	handler := NewHandler(s)
+	handler := NewHandler(s, "")
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
 	return mux, s
@@ -40,12 +40,12 @@ func createChallengeViaHTTP(t *testing.T, mux *http.ServeMux) store.Challenge {
 
 func verifyViaHTTP(t *testing.T, mux *http.ServeMux, challengeID string, bits []int, nullifier string) *httptest.ResponseRecorder {
 	t.Helper()
-	body, _ := json.Marshal(VerifyRequest{
+	body, _ := json.Marshal(VerifyTBSRequest{
 		ChallengeID: challengeID,
 		TBSHashBits: bits,
 		Nullifier:   nullifier,
 	})
-	req := httptest.NewRequest("POST", "/verify", bytes.NewReader(body))
+	req := httptest.NewRequest("POST", "/verify-tbs", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	return w
@@ -236,7 +236,7 @@ func TestVerifyExpiredChallenge(t *testing.T) {
 func TestVerifyInvalidBody(t *testing.T) {
 	mux, _ := setupServer(t, DefaultTTL)
 
-	req := httptest.NewRequest("POST", "/verify", bytes.NewReader([]byte("not json")))
+	req := httptest.NewRequest("POST", "/verify-tbs", bytes.NewReader([]byte("not json")))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
