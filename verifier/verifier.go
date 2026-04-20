@@ -1,7 +1,7 @@
 package verifier
 
 /*
-#cgo LDFLAGS: -lzk_verifier -lwitnesscalc_rs256 -lm
+#cgo LDFLAGS: -lzk_verifier -lm
 #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../lib/aarch64-apple-darwin -Wl,-rpath,${SRCDIR}/../lib/aarch64-apple-darwin -lc++
 #cgo linux LDFLAGS: -L${SRCDIR}/../lib/x86_64-unknown-linux-gnu -Wl,-rpath,${SRCDIR}/../lib/x86_64-unknown-linux-gnu -lstdc++
 #include <stdint.h>

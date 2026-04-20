@@ -32,7 +32,6 @@ else
 endif
 	mkdir -p $(LIB_DIR)
 	cp $(RUST_OUT_DIR)/libzk_verifier.a $(LIB_DIR)/
-	cp $(shell find $(RUST_OUT_DIR)/build -name "libwitnesscalc_rs256.$(DYLIB_EXT)" -path "*/package/lib/*" | head -1) $(LIB_DIR)/
 
 build-server: $(RUST_LIB)
 	go build -o zkid-server ./cmd/server
