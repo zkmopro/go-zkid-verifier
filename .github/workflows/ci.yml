@@ -20,11 +20,8 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Build challenge server
-        run: make build-server
-
-      - name: Test challenge package
-        run: make test-challenge
+      - name: Test store (pure Go)
+        run: CGO_ENABLED=0 go test ./store/ -v
 
   verifier:
     strategy:
@@ -34,15 +31,15 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout go-zk-verifier
+      - name: Checkout go-zkid-verifier
         uses: actions/checkout@v4
         with:
-          path: go-zk-verifier
+          path: go-zkid-verifier
 
-      - name: Clone zkID at cc21edd
+      - name: Clone zkID (pinned for reproducible builds)
         run: |
           git clone https://github.com/zkmopro/zkID.git zkID
-          cd zkID && git checkout cc21edd
+          cd zkID && git checkout c6652de90bb6935db21d29ee55bc5c44f6efa26a
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -57,28 +54,50 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            go-zk-verifier/rust/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('go-zk-verifier/rust/Cargo.lock') }}
+            go-zkid-verifier/rust/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('go-zkid-verifier/rust/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go-zk-verifier/go.mod
+          go-version-file: go-zkid-verifier/go.mod
           cache: true
 
-      - name: Build verifier
-        working-directory: go-zk-verifier
-        run: make build-verifier
+      - name: Build Rust library and Go binaries
+        working-directory: go-zkid-verifier
+        run: make build
 
-      - name: Download verifying key
-        working-directory: go-zk-verifier
+      - name: Download verifying keys
+        working-directory: go-zkid-verifier
         run: make download-keys
 
-      - name: Test verifier
-        working-directory: go-zk-verifier
-        run: make test-verifier
+      - name: Test challenge package
+        working-directory: go-zkid-verifier
+        run: go test ./challenge/ -v
 
-      - name: Verify
-        working-directory: go-zk-verifier
-        run: make verify
+      - name: Test link-verify orchestration
+        working-directory: go-zkid-verifier
+        run: go test ./linkverify/ -v
+
+      - name: Test verifier FFI (RS2048)
+        working-directory: go-zkid-verifier
+        run: |
+          TMPDIR=$(mktemp -d)
+          mkdir -p "$TMPDIR/keys"
+          cp tests/artifacts/cc2048_ds2048/*.bin "$TMPDIR/keys/"
+          ln -s "$(pwd)/keys/cert_chain_rs2048_verifying.key" "$TMPDIR/keys/"
+          ln -s "$(pwd)/keys/device_sig_rs2048_verifying.key" "$TMPDIR/keys/"
+          ZK_BASE_DIR="$TMPDIR" go test ./verifier/ -v -run TestLinkVerifyRS2048
+          rm -rf "$TMPDIR"
+
+      - name: Test verifier FFI (RS4096)
+        working-directory: go-zkid-verifier
+        run: |
+          TMPDIR=$(mktemp -d)
+          mkdir -p "$TMPDIR/keys"
+          cp tests/artifacts/cc4096_ds2048/*.bin "$TMPDIR/keys/"
+          ln -s "$(pwd)/keys/cert_chain_rs4096_verifying.key" "$TMPDIR/keys/"
+          ln -s "$(pwd)/keys/device_sig_rs2048_verifying.key" "$TMPDIR/keys/"
+          ZK_BASE_DIR="$TMPDIR" go test ./verifier/ -v -run TestLinkVerifyRS4096
+          rm -rf "$TMPDIR"

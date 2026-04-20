@@ -27,6 +27,7 @@ type VerificationRecord struct {
 	Nullifier   string    `json:"nullifier"`
 	IDVerified  bool      `json:"id_verified"`
 	IDProof     *string   `json:"id_proof,omitempty"`
+	ProofType   string    `json:"proof_type"`
 	VerifiedAt  time.Time `json:"verified_at"`
 	ChallengeID string    `json:"challenge_id"`
 }
@@ -47,10 +48,11 @@ type Store interface {
 	//
 	// Checks inside TX: challenge exists, not expired, not consumed, nullifier unique.
 	// proof is nil if no proof data is provided (issue #9 will populate this).
+	// proofType identifies the verification method: "tbs", "link_rs2048", "link_rs4096".
 	//
 	// Returns sentinel errors: ErrChallengeNotFound, ErrChallengeExpired,
 	// ErrChallengeConsumed, ErrDuplicateNullifier.
-	VerifyAndRecord(ctx context.Context, nullifier, challengeID string, proof *string) error
+	VerifyAndRecord(ctx context.Context, nullifier, challengeID string, proof *string, proofType string) error
 
 	// GetVerification retrieves verification status by nullifier.
 	// Returns nil, nil if not found.

@@ -4,5 +4,6 @@ zkid-server
 zkid-verifier
 zk-verifier
 keys/
+lib/
 /server
 *.db
