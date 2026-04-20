@@ -64,9 +64,9 @@ jobs:
           go-version-file: go-zkid-verifier/go.mod
           cache: true
 
-      - name: Build verifier
+      - name: Build Rust library and Go binaries
         working-directory: go-zkid-verifier
-        run: make build-verifier
+        run: make build
 
       - name: Download verifying keys
         working-directory: go-zkid-verifier
@@ -76,10 +76,28 @@ jobs:
         working-directory: go-zkid-verifier
         run: go test ./challenge/ -v
 
-      - name: Test verifier (link-verify)
+      - name: Test link-verify orchestration
         working-directory: go-zkid-verifier
-        run: make test-verifier
+        run: go test ./linkverify/ -v
 
-      - name: Verify (RS2048)
+      - name: Test verifier FFI (RS2048)
         working-directory: go-zkid-verifier
-        run: make verify
+        run: |
+          TMPDIR=$(mktemp -d)
+          mkdir -p "$TMPDIR/keys"
+          cp tests/artifacts/cc2048_ds2048/*.bin "$TMPDIR/keys/"
+          ln -s "$(pwd)/keys/cert_chain_rs2048_verifying.key" "$TMPDIR/keys/"
+          ln -s "$(pwd)/keys/device_sig_rs2048_verifying.key" "$TMPDIR/keys/"
+          ZK_BASE_DIR="$TMPDIR" go test ./verifier/ -v -run TestLinkVerifyRS2048
+          rm -rf "$TMPDIR"
+
+      - name: Test verifier FFI (RS4096)
+        working-directory: go-zkid-verifier
+        run: |
+          TMPDIR=$(mktemp -d)
+          mkdir -p "$TMPDIR/keys"
+          cp tests/artifacts/cc4096_ds2048/*.bin "$TMPDIR/keys/"
+          ln -s "$(pwd)/keys/cert_chain_rs4096_verifying.key" "$TMPDIR/keys/"
+          ln -s "$(pwd)/keys/device_sig_rs2048_verifying.key" "$TMPDIR/keys/"
+          ZK_BASE_DIR="$TMPDIR" go test ./verifier/ -v -run TestLinkVerifyRS4096
+          rm -rf "$TMPDIR"
