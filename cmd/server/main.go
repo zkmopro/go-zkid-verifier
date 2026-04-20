@@ -39,6 +39,11 @@ func main() {
 	}
 	keysDir, _ = filepath.Abs(keysDir)
 
+	corsOrigin := os.Getenv("CORS_ORIGIN")
+	if corsOrigin == "" {
+		corsOrigin = "*"
+	}
+
 	// Download verifying keys if missing
 	log.Printf("Checking verifying keys in %s...", keysDir)
 	if err := keymanager.EnsureKeys(keysDir); err != nil {
@@ -53,6 +58,12 @@ func main() {
 	defer s.Close()
 
 	handler := challenge.NewHandler(s, keysDir)
+
+	// Bind gRPC listener in main (fail fast before any server starts)
+	grpcLis, err := net.Listen("tcp", grpcAddr)
+	if err != nil {
+		log.Fatalf("gRPC listen on %s: %v", grpcAddr, err)
+	}
 
 	// HTTP server
 	mux := http.NewServeMux()
@@ -70,21 +81,19 @@ func main() {
 	fmt.Printf("  POST /link-verify            - Verify ZK proofs with pk_commit linkage\n")
 	fmt.Printf("  GET  /users/{nullifier}/status - Query verification status\n\n")
 
-	// Start gRPC server in a goroutine
+	// Start gRPC server in a goroutine (listener already bound)
 	go func() {
-		lis, err := net.Listen("tcp", grpcAddr)
-		if err != nil {
-			log.Fatalf("gRPC listen: %v", err)
-		}
-		grpcServer := grpc.NewServer()
+		grpcServer := grpc.NewServer(
+			grpc.MaxRecvMsgSize(2 * 1024 * 1024), // 2MB, match HTTP limit
+		)
 		pb.RegisterZkIDVerifierServer(grpcServer, zkgrpc.NewServer(s, keysDir))
 		log.Printf("gRPC server started on %s", grpcAddr)
-		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("gRPC serve: %v", err)
+		if err := grpcServer.Serve(grpcLis); err != nil {
+			log.Printf("gRPC serve error: %v", err)
 		}
 	}()
 
-	if err := http.ListenAndServe(httpAddr, corsMiddleware(logMiddleware(mux))); err != nil {
+	if err := http.ListenAndServe(httpAddr, corsMiddleware(corsOrigin, logMiddleware(mux))); err != nil {
 		log.Fatalf("HTTP server error: %v", err)
 	}
 }
@@ -98,9 +107,9 @@ func logMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func corsMiddleware(next http.Handler) http.Handler {
+func corsMiddleware(origin string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodOptions {

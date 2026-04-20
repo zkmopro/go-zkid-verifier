@@ -36,9 +36,10 @@ jobs:
         with:
           path: go-zkid-verifier
 
-      - name: Clone zkID
+      - name: Clone zkID (pinned for reproducible builds)
         run: |
           git clone https://github.com/zkmopro/zkID.git zkID
+          cd zkID && git checkout c6652de90bb6935db21d29ee55bc5c44f6efa26a
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable

@@ -2,6 +2,8 @@ package grpc
 
 import (
 	"context"
+	"errors"
+	"log"
 	"time"
 
 	"github.com/zkmopro/go-zkid-verifier/challenge"
@@ -26,7 +28,8 @@ func NewServer(s store.Store, keysDir string) *Server {
 func (s *Server) CreateChallenge(ctx context.Context, _ *pb.CreateChallengeRequest) (*pb.CreateChallengeResponse, error) {
 	c, err := s.store.CreateChallenge(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create challenge: %v", err)
+		log.Printf("create challenge error: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to create challenge")
 	}
 	return &pb.CreateChallengeResponse{
 		ChallengeId:    c.ID,
@@ -36,6 +39,9 @@ func (s *Server) CreateChallenge(ctx context.Context, _ *pb.CreateChallengeReque
 }
 
 func (s *Server) GetChallenge(ctx context.Context, req *pb.GetChallengeRequest) (*pb.GetChallengeResponse, error) {
+	if req.ChallengeId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "challenge_id is required")
+	}
 	c, err := s.store.GetChallenge(ctx, req.ChallengeId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -54,6 +60,9 @@ func (s *Server) GetChallenge(ctx context.Context, req *pb.GetChallengeRequest) 
 }
 
 func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb.LinkVerifyResponse, error) {
+	if req.ChallengeId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "challenge_id is required")
+	}
 	if len(req.CertChainProof) == 0 || len(req.DeviceSigProof) == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "cert_chain_proof and device_sig_proof are required")
 	}
@@ -61,9 +70,9 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 		return nil, status.Errorf(codes.InvalidArgument, "nullifier is required")
 	}
 
-	pt := linkverify.ProofTypeRS2048
-	if req.CertChainType == "rs4096" {
-		pt = linkverify.ProofTypeRS4096
+	pt, err := parseCertChainType(req.CertChainType)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
 	// Validate challenge
@@ -85,7 +94,8 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 		ProofType:      pt,
 	}, s.keysDir)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "verification failed: %v", err)
+		log.Printf("link-verify error: %v", err)
+		return nil, status.Errorf(codes.Internal, "proof verification failed")
 	}
 
 	if !verified {
@@ -114,6 +124,13 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 }
 
 func (s *Server) VerifyTBS(ctx context.Context, req *pb.VerifyTBSRequest) (*pb.VerifyTBSResponse, error) {
+	if req.ChallengeId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "challenge_id is required")
+	}
+	if req.Nullifier == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "nullifier is required")
+	}
+
 	c, err := s.store.GetChallenge(ctx, req.ChallengeId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -174,15 +191,27 @@ func (s *Server) GetVerificationStatus(ctx context.Context, req *pb.GetVerificat
 	}, nil
 }
 
+// parseCertChainType validates the cert_chain_type field.
+func parseCertChainType(s string) (linkverify.ProofType, error) {
+	switch s {
+	case "", "rs2048":
+		return linkverify.ProofTypeRS2048, nil
+	case "rs4096":
+		return linkverify.ProofTypeRS4096, nil
+	default:
+		return "", errors.New("invalid cert_chain_type: must be rs2048 or rs4096")
+	}
+}
+
 func storeErrorToGRPC(err error) error {
 	switch {
-	case err == store.ErrDuplicateNullifier:
+	case errors.Is(err, store.ErrDuplicateNullifier):
 		return status.Errorf(codes.AlreadyExists, "nullifier already registered")
-	case err == store.ErrChallengeNotFound:
+	case errors.Is(err, store.ErrChallengeNotFound):
 		return status.Errorf(codes.NotFound, "challenge not found")
-	case err == store.ErrChallengeExpired:
+	case errors.Is(err, store.ErrChallengeExpired):
 		return status.Errorf(codes.FailedPrecondition, "challenge expired")
-	case err == store.ErrChallengeConsumed:
+	case errors.Is(err, store.ErrChallengeConsumed):
 		return status.Errorf(codes.FailedPrecondition, "challenge already consumed")
 	default:
 		return status.Errorf(codes.Internal, "internal error")

@@ -16,6 +16,9 @@ const (
 	ProofTypeRS4096 ProofType = "rs4096" // cert_chain_rs4096 + device_sig_rs2048
 )
 
+// maxConcurrent limits parallel ZK verifications to prevent temp dir / CPU exhaustion.
+var verifySem = make(chan struct{}, 10)
+
 // Request holds the proof data for a link-verify operation.
 type Request struct {
 	CertChainProof []byte    // binary proof bytes
@@ -41,7 +44,12 @@ func proofFileNames(pt ProofType) (ccProof, dsProof, ccVK, dsVK string) {
 //
 // It creates a temp directory, writes the proof bytes to it, symlinks the
 // verifying keys from keysDir, calls the Rust FFI, and cleans up.
+// Concurrent calls are bounded by a semaphore to prevent resource exhaustion.
 func Verify(req Request, keysDir string) (bool, error) {
+	// Acquire semaphore slot to bound concurrent verifications.
+	verifySem <- struct{}{}
+	defer func() { <-verifySem }()
+
 	pt := req.ProofType
 	if pt == "" {
 		pt = ProofTypeRS2048
@@ -61,11 +69,11 @@ func Verify(req Request, keysDir string) (bool, error) {
 		return false, fmt.Errorf("create temp keys dir: %w", err)
 	}
 
-	// Write proof bytes to temp directory
-	if err := os.WriteFile(filepath.Join(tmpKeys, ccProofName), req.CertChainProof, 0o644); err != nil {
+	// Write proof bytes with restrictive permissions (user-only read/write).
+	if err := os.WriteFile(filepath.Join(tmpKeys, ccProofName), req.CertChainProof, 0o600); err != nil {
 		return false, fmt.Errorf("write cert-chain proof: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpKeys, dsProofName), req.DeviceSigProof, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpKeys, dsProofName), req.DeviceSigProof, 0o600); err != nil {
 		return false, fmt.Errorf("write device-sig proof: %w", err)
 	}
 

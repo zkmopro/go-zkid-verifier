@@ -8,9 +8,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const releaseURL = "https://github.com/zkmopro/zkID/releases/download/latest"
+
+// maxKeySize caps the decompressed key file at 600MB to prevent gzip bombs.
+const maxKeySize = 600 * 1024 * 1024
 
 // RequiredKeys lists the verifying key files needed for link-verify.
 var RequiredKeys = []string{
@@ -18,6 +22,8 @@ var RequiredKeys = []string{
 	"cert_chain_rs4096_verifying.key",
 	"device_sig_rs2048_verifying.key",
 }
+
+var httpClient = &http.Client{Timeout: 10 * time.Minute}
 
 // EnsureKeys checks for each required verifying key in keysDir and downloads
 // any missing keys from the zkID GitHub release. Returns an error if any
@@ -45,7 +51,7 @@ func EnsureKeys(keysDir string) error {
 func downloadAndDecompress(key, dest string) error {
 	url := fmt.Sprintf("%s/%s.gz", releaseURL, key)
 
-	resp, err := http.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return fmt.Errorf("GET %s: %w", url, err)
 	}
@@ -61,15 +67,25 @@ func downloadAndDecompress(key, dest string) error {
 	}
 	defer gz.Close()
 
-	f, err := os.Create(dest)
+	// Atomic write: decompress to a temp file, then rename into place.
+	// Prevents corrupt partial files if the process crashes mid-download.
+	tmpFile := dest + ".tmp"
+	f, err := os.Create(tmpFile)
 	if err != nil {
-		return fmt.Errorf("create %s: %w", dest, err)
+		return fmt.Errorf("create %s: %w", tmpFile, err)
 	}
-	defer f.Close()
 
-	if _, err := io.Copy(f, gz); err != nil {
-		os.Remove(dest)
-		return fmt.Errorf("decompress %s: %w", key, err)
+	// Cap decompressed size to prevent gzip bombs.
+	_, copyErr := io.Copy(f, io.LimitReader(gz, maxKeySize))
+	f.Close()
+	if copyErr != nil {
+		os.Remove(tmpFile)
+		return fmt.Errorf("decompress %s: %w", key, copyErr)
+	}
+
+	if err := os.Rename(tmpFile, dest); err != nil {
+		os.Remove(tmpFile)
+		return fmt.Errorf("rename %s: %w", key, err)
 	}
 
 	return nil

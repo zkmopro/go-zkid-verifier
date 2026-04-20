@@ -3,6 +3,7 @@ package challenge
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -30,7 +31,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 func (h *Handler) CreateChallenge(w http.ResponseWriter, r *http.Request) {
 	c, err := h.store.CreateChallenge(r.Context())
 	if err != nil {
-		http.Error(w, `{"error":"failed to create challenge"}`, http.StatusInternalServerError)
+		jsonError(w, "failed to create challenge", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -42,15 +43,15 @@ func (h *Handler) GetChallenge(w http.ResponseWriter, r *http.Request) {
 
 	c, err := h.store.GetChallenge(r.Context(), id)
 	if err != nil {
-		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+		jsonError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	if c == nil {
-		http.Error(w, `{"error":"challenge not found"}`, http.StatusNotFound)
+		jsonError(w, "challenge not found", http.StatusNotFound)
 		return
 	}
 	if time.Now().After(c.ExpiresAt) {
-		http.Error(w, `{"error":"challenge expired"}`, http.StatusBadRequest)
+		jsonError(w, "challenge expired", http.StatusBadRequest)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -81,22 +82,27 @@ func (h *Handler) VerifyTBSHash(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 64*1024) // 64KB limit
 	var req VerifyTBSRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.ChallengeID == "" || req.Nullifier == "" {
+		jsonError(w, "challenge_id and nullifier are required", http.StatusBadRequest)
 		return
 	}
 
 	// Look up challenge (non-authoritative fast-fail for expiry)
 	c, err := h.store.GetChallenge(r.Context(), req.ChallengeID)
 	if err != nil {
-		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+		jsonError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	if c == nil {
-		http.Error(w, `{"error":"challenge not found or expired"}`, http.StatusNotFound)
+		jsonError(w, "challenge not found or expired", http.StatusNotFound)
 		return
 	}
 	if time.Now().After(c.ExpiresAt) {
-		http.Error(w, `{"error":"challenge expired"}`, http.StatusBadRequest)
+		jsonError(w, "challenge expired", http.StatusBadRequest)
 		return
 	}
 
@@ -141,37 +147,42 @@ func (h *Handler) LinkVerify(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 2*1024*1024) // 2MB limit for proof data
 	var req LinkVerifyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
+	if req.ChallengeID == "" {
+		jsonError(w, "challenge_id is required", http.StatusBadRequest)
+		return
+	}
 	if len(req.CertChainProof) == 0 || len(req.DeviceSigProof) == 0 {
-		http.Error(w, `{"error":"cert_chain_proof and device_sig_proof are required"}`, http.StatusBadRequest)
+		jsonError(w, "cert_chain_proof and device_sig_proof are required", http.StatusBadRequest)
 		return
 	}
 	if req.Nullifier == "" {
-		http.Error(w, `{"error":"nullifier is required"}`, http.StatusBadRequest)
+		jsonError(w, "nullifier is required", http.StatusBadRequest)
 		return
 	}
 
-	// Determine proof type
-	pt := linkverify.ProofTypeRS2048
-	if req.CertChainType == "rs4096" {
-		pt = linkverify.ProofTypeRS4096
+	// Validate and determine proof type
+	pt, err := parseCertChainType(req.CertChainType)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	// Look up and validate challenge
 	c, err := h.store.GetChallenge(r.Context(), req.ChallengeID)
 	if err != nil {
-		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+		jsonError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	if c == nil {
-		http.Error(w, `{"error":"challenge not found or expired"}`, http.StatusNotFound)
+		jsonError(w, "challenge not found or expired", http.StatusNotFound)
 		return
 	}
 	if time.Now().After(c.ExpiresAt) {
-		http.Error(w, `{"error":"challenge expired"}`, http.StatusBadRequest)
+		jsonError(w, "challenge expired", http.StatusBadRequest)
 		return
 	}
 
@@ -182,7 +193,8 @@ func (h *Handler) LinkVerify(w http.ResponseWriter, r *http.Request) {
 		ProofType:      pt,
 	}, h.keysDir)
 	if err != nil {
-		http.Error(w, `{"error":"verification failed: `+err.Error()+`"}`, http.StatusInternalServerError)
+		log.Printf("link-verify error: %v", err)
+		jsonError(w, "proof verification failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -218,17 +230,17 @@ func (h *Handler) LinkVerify(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetVerificationStatus(w http.ResponseWriter, r *http.Request) {
 	nullifier := r.PathValue("nullifier")
 	if nullifier == "" {
-		http.Error(w, `{"error":"nullifier required"}`, http.StatusBadRequest)
+		jsonError(w, "nullifier required", http.StatusBadRequest)
 		return
 	}
 
 	rec, err := h.store.GetVerification(r.Context(), nullifier)
 	if err != nil {
-		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+		jsonError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	if rec == nil {
-		http.Error(w, `{"error":"nullifier not found"}`, http.StatusNotFound)
+		jsonError(w, "nullifier not found", http.StatusNotFound)
 		return
 	}
 
@@ -236,23 +248,42 @@ func (h *Handler) GetVerificationStatus(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(rec)
 }
 
-// writeStoreError maps store sentinel errors to HTTP responses.
-func writeStoreError(w http.ResponseWriter, err error, nullifier string) {
+// parseCertChainType validates the cert_chain_type field.
+func parseCertChainType(s string) (linkverify.ProofType, error) {
+	switch s {
+	case "", "rs2048":
+		return linkverify.ProofTypeRS2048, nil
+	case "rs4096":
+		return linkverify.ProofTypeRS4096, nil
+	default:
+		return "", errors.New("invalid cert_chain_type: must be rs2048 or rs4096")
+	}
+}
+
+// jsonError writes a JSON error response with the correct Content-Type.
+func jsonError(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
+// writeStoreError maps store sentinel errors to JSON HTTP responses.
+func writeStoreError(w http.ResponseWriter, err error, nullifier string) {
 	switch {
 	case errors.Is(err, store.ErrDuplicateNullifier):
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error":     "nullifier already registered",
 			"nullifier": nullifier,
 		})
 	case errors.Is(err, store.ErrChallengeNotFound):
-		http.Error(w, `{"error":"challenge not found"}`, http.StatusNotFound)
+		jsonError(w, "challenge not found", http.StatusNotFound)
 	case errors.Is(err, store.ErrChallengeExpired):
-		http.Error(w, `{"error":"challenge expired"}`, http.StatusBadRequest)
+		jsonError(w, "challenge expired", http.StatusBadRequest)
 	case errors.Is(err, store.ErrChallengeConsumed):
-		http.Error(w, `{"error":"challenge already consumed"}`, http.StatusGone)
+		jsonError(w, "challenge already consumed", http.StatusGone)
 	default:
-		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+		jsonError(w, "internal server error", http.StatusInternalServerError)
 	}
 }
