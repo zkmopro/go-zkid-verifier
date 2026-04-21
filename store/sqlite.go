@@ -137,6 +137,35 @@ func (s *SQLiteStore) GetChallenge(ctx context.Context, id string) (*Challenge, 
 	return &c, nil
 }
 
+func (s *SQLiteStore) GetChallengeByHex(ctx context.Context, bytesHex string) (*Challenge, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT id, bytes_hex, bytes_raw, expires_at FROM challenges WHERE bytes_hex = ?`, bytesHex,
+	)
+
+	var c Challenge
+	var rawBytes []byte
+	var expiresAtStr string
+	if err := row.Scan(&c.ID, &c.BytesHex, &rawBytes, &expiresAtStr); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("scan challenge: %w", err)
+	}
+
+	if len(rawBytes) != 16 {
+		return nil, fmt.Errorf("corrupt challenge: bytes_raw has %d bytes, want 16", len(rawBytes))
+	}
+	copy(c.Bytes[:], rawBytes)
+
+	expiresAt, parseErr := parseTime(expiresAtStr)
+	if parseErr != nil {
+		return nil, fmt.Errorf("parse expires_at: %w", parseErr)
+	}
+	c.ExpiresAt = expiresAt
+
+	return &c, nil
+}
+
 func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challengeID string, proof *string, proofType string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

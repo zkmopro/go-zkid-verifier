@@ -63,7 +63,6 @@ func TestVerifyRS2048(t *testing.T) {
 		t.Fatalf("Challenge(): %v", err)
 	}
 	t.Logf("pk_commit:  %s", ds.PkCommit)
-	t.Logf("packed_tbs: %s", ds.PackedTBS)
 	t.Logf("challenge:  %s", challenge)
 }
 
