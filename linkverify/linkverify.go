@@ -8,6 +8,9 @@ import (
 	"github.com/zkmopro/go-zkid-verifier/verifier"
 )
 
+// PublicSignals is an alias for the verifier public signals type.
+type PublicSignals = verifier.PublicSignals
+
 // ProofType selects the cert-chain RSA key size variant.
 type ProofType string
 
@@ -45,7 +48,7 @@ func proofFileNames(pt ProofType) (ccProof, dsProof, ccVK, dsVK string) {
 // It creates a temp directory, writes the proof bytes to it, symlinks the
 // verifying keys from keysDir, calls the Rust FFI, and cleans up.
 // Concurrent calls are bounded by a semaphore to prevent resource exhaustion.
-func Verify(req Request, keysDir string) (bool, error) {
+func Verify(req Request, keysDir string) (bool, *PublicSignals, error) {
 	// Acquire semaphore slot to bound concurrent verifications.
 	verifySem <- struct{}{}
 	defer func() { <-verifySem }()
@@ -60,21 +63,21 @@ func Verify(req Request, keysDir string) (bool, error) {
 	// Create temp directory with keys/ subdirectory
 	tmpDir, err := os.MkdirTemp("", "zkid-linkverify-*")
 	if err != nil {
-		return false, fmt.Errorf("create temp dir: %w", err)
+		return false, nil, fmt.Errorf("create temp dir: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
 	tmpKeys := filepath.Join(tmpDir, "keys")
 	if err := os.Mkdir(tmpKeys, 0o755); err != nil {
-		return false, fmt.Errorf("create temp keys dir: %w", err)
+		return false, nil, fmt.Errorf("create temp keys dir: %w", err)
 	}
 
 	// Write proof bytes with restrictive permissions (user-only read/write).
 	if err := os.WriteFile(filepath.Join(tmpKeys, ccProofName), req.CertChainProof, 0o600); err != nil {
-		return false, fmt.Errorf("write cert-chain proof: %w", err)
+		return false, nil, fmt.Errorf("write cert-chain proof: %w", err)
 	}
 	if err := os.WriteFile(filepath.Join(tmpKeys, dsProofName), req.DeviceSigProof, 0o600); err != nil {
-		return false, fmt.Errorf("write device-sig proof: %w", err)
+		return false, nil, fmt.Errorf("write device-sig proof: %w", err)
 	}
 
 	// Symlink verifying keys from the permanent keys directory
@@ -82,7 +85,7 @@ func Verify(req Request, keysDir string) (bool, error) {
 		src := filepath.Join(keysDir, vk)
 		dst := filepath.Join(tmpKeys, vk)
 		if err := os.Symlink(src, dst); err != nil {
-			return false, fmt.Errorf("symlink %s: %w", vk, err)
+			return false, nil, fmt.Errorf("symlink %s: %w", vk, err)
 		}
 	}
 

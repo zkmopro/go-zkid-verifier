@@ -67,10 +67,11 @@ type VerifyTBSRequest struct {
 }
 
 type VerifySuccessResponse struct {
-	Verified   bool   `json:"verified"`
-	Nullifier  string `json:"nullifier"`
-	IDVerified bool   `json:"id_verified,omitempty"`
-	Persisted  bool   `json:"persisted,omitempty"`
+	Verified      bool                    `json:"verified"`
+	Nullifier     string                  `json:"nullifier"`
+	IDVerified    bool                    `json:"id_verified,omitempty"`
+	Persisted     bool                    `json:"persisted,omitempty"`
+	PublicSignals *linkverify.PublicSignals `json:"public_signals,omitempty"`
 }
 
 type VerifyFailResponse struct {
@@ -174,6 +175,7 @@ func (h *Handler) LinkVerify(w http.ResponseWriter, r *http.Request) {
 	// Look up and validate challenge
 	c, err := h.store.GetChallenge(r.Context(), req.ChallengeID)
 	if err != nil {
+		log.Printf("link-verify get challenge error: %v", err)
 		jsonError(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -187,7 +189,7 @@ func (h *Handler) LinkVerify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Run ZK link-verify
-	verified, err := linkverify.Verify(linkverify.Request{
+	verified, signals, err := linkverify.Verify(linkverify.Request{
 		CertChainProof: req.CertChainProof,
 		DeviceSigProof: req.DeviceSigProof,
 		ProofType:      pt,
@@ -220,10 +222,11 @@ func (h *Handler) LinkVerify(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(VerifySuccessResponse{
-		Verified:   true,
-		Nullifier:  req.Nullifier,
-		IDVerified: true,
-		Persisted:  true,
+		Verified:      true,
+		Nullifier:     req.Nullifier,
+		IDVerified:    true,
+		Persisted:     true,
+		PublicSignals: signals,
 	})
 }
 
@@ -284,6 +287,7 @@ func writeStoreError(w http.ResponseWriter, err error, nullifier string) {
 	case errors.Is(err, store.ErrChallengeConsumed):
 		jsonError(w, "challenge already consumed", http.StatusGone)
 	default:
+		log.Printf("store error for nullifier %s: %v", nullifier, err)
 		jsonError(w, "internal server error", http.StatusInternalServerError)
 	}
 }

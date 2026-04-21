@@ -63,6 +63,15 @@ func NewSQLiteStore(dbPath string, ttl time.Duration) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("run migrations: %w", err)
 	}
 
+	// Add proof_type column if it was created before this column existed.
+	if _, err := db.Exec(`ALTER TABLE verifications ADD COLUMN proof_type TEXT NOT NULL DEFAULT 'tbs'`); err != nil {
+		// SQLite returns an error if the column already exists; ignore it.
+		if !strings.Contains(err.Error(), "duplicate column name") {
+			db.Close()
+			return nil, fmt.Errorf("migrate verifications.proof_type: %w", err)
+		}
+	}
+
 	return &SQLiteStore{db: db, ttl: ttl}, nil
 }
 

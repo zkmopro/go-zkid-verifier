@@ -88,7 +88,7 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 	}
 
 	// Run ZK link-verify
-	verified, err := linkverify.Verify(linkverify.Request{
+	verified, _, err := linkverify.Verify(linkverify.Request{
 		CertChainProof: req.CertChainProof,
 		DeviceSigProof: req.DeviceSigProof,
 		ProofType:      pt,
