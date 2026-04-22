@@ -9,25 +9,23 @@ import (
 
 // CertChainRS2048PublicInputs holds the named public outputs from the cert-chain RS2048 circuit.
 //
-// Layout (21 field elements):
+// Layout (20 field elements):
 //
 //	0:     subject_dn_hash
 //	1:     pk_commit
 //	2–18:  issuer_rsa_modulus  (17 limbs)
 //	19:    smt_root
-//	20:    serial_number
 type CertChainRS2048PublicInputs struct {
 	SubjectDNHash    string
 	PkCommit         string
 	IssuerRSAModulus []string // 17 limbs
 	SmtRoot          string
-	SerialNumber     string
 }
 
 // ParseCertChainRS2048 parses the raw CertChain signal slice from PublicSignals
-// into named fields. Returns an error if the slice has fewer than 21 elements.
+// into named fields. Returns an error if the slice has fewer than 20 elements.
 func ParseCertChainRS2048(signals []string) (*CertChainRS2048PublicInputs, error) {
-	const required = 21
+	const required = 20
 	if len(signals) < required {
 		return nil, fmt.Errorf("cert_chain RS2048 requires %d public inputs, got %d", required, len(signals))
 	}
@@ -36,31 +34,28 @@ func ParseCertChainRS2048(signals []string) (*CertChainRS2048PublicInputs, error
 		PkCommit:         signals[1],
 		IssuerRSAModulus: signals[2:19],
 		SmtRoot:          signals[19],
-		SerialNumber:     signals[20],
 	}, nil
 }
 
 // CertChainRS4096PublicInputs holds the named public outputs from the cert-chain RS4096 circuit.
 //
-// Layout (38 field elements):
+// Layout (37 field elements):
 //
 //	0:     subject_dn_hash
 //	1:     pk_commit
 //	2–35:  issuer_rsa_modulus  (34 limbs)
 //	36:    smt_root
-//	37:    serial_number
 type CertChainRS4096PublicInputs struct {
 	SubjectDNHash    string
 	PkCommit         string
 	IssuerRSAModulus []string // 34 limbs
 	SmtRoot          string
-	SerialNumber     string
 }
 
 // ParseCertChainRS4096 parses the raw CertChain signal slice from PublicSignals
-// into named fields. Returns an error if the slice has fewer than 38 elements.
+// into named fields. Returns an error if the slice has fewer than 37 elements.
 func ParseCertChainRS4096(signals []string) (*CertChainRS4096PublicInputs, error) {
-	const required = 38
+	const required = 37
 	if len(signals) < required {
 		return nil, fmt.Errorf("cert_chain RS4096 requires %d public inputs, got %d", required, len(signals))
 	}
@@ -69,7 +64,6 @@ func ParseCertChainRS4096(signals []string) (*CertChainRS4096PublicInputs, error
 		PkCommit:         signals[1],
 		IssuerRSAModulus: signals[2:36],
 		SmtRoot:          signals[36],
-		SerialNumber:     signals[37],
 	}, nil
 }
 
@@ -178,7 +172,6 @@ func ParsePublicInputsRS2048(certChain, deviceSig []string) (*ParsedInputs, erro
 		SubjectDNHash:    cc.SubjectDNHash,
 		IssuerRSAModulus: cc.IssuerRSAModulus,
 		SmtRoot:          cc.SmtRoot,
-		SerialNumber:     cc.SerialNumber,
 	}, nil
 }
 
@@ -203,6 +196,5 @@ func ParsePublicInputsRS4096(certChain, deviceSig []string) (*ParsedInputs, erro
 		SubjectDNHash:    cc.SubjectDNHash,
 		IssuerRSAModulus: cc.IssuerRSAModulus,
 		SmtRoot:          cc.SmtRoot,
-		SerialNumber:     cc.SerialNumber,
 	}, nil
 }
