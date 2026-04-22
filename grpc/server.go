@@ -17,12 +17,12 @@ import (
 // Server implements the ZkIDVerifier gRPC service.
 type Server struct {
 	pb.UnimplementedZkIDVerifierServer
-	store   store.Store
-	keysDir string
+	store    store.Store
+	verifier *linkverify.Verifier
 }
 
-func NewServer(s store.Store, keysDir string) *Server {
-	return &Server{store: s, keysDir: keysDir}
+func NewServer(s store.Store, v *linkverify.Verifier) *Server {
+	return &Server{store: s, verifier: v}
 }
 
 func (s *Server) CreateChallenge(ctx context.Context, _ *pb.CreateChallengeRequest) (*pb.CreateChallengeResponse, error) {
@@ -87,21 +87,21 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 		return nil, status.Errorf(codes.FailedPrecondition, "challenge expired")
 	}
 
-	// Run ZK link-verify
-	verified, _, err := linkverify.Verify(linkverify.Request{
+	result, err := s.verifier.Verify(linkverify.Request{
 		CertChainProof: req.CertChainProof,
 		DeviceSigProof: req.DeviceSigProof,
 		ProofType:      pt,
-	}, s.keysDir)
+	})
 	if err != nil {
 		log.Printf("link-verify error: %v", err)
 		return nil, status.Errorf(codes.Internal, "proof verification failed")
 	}
-
-	if !verified {
+	if !result.Verified {
 		return &pb.LinkVerifyResponse{
 			Verified:  false,
 			Nullifier: req.Nullifier,
+			Reason:    result.Reason,
+			SmtRoot:   smtRootOutcomeToProto(result.SmtRoot),
 		}, nil
 	}
 
@@ -120,7 +120,27 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 		Nullifier:  req.Nullifier,
 		IdVerified: true,
 		Persisted:  true,
+		SmtRoot:    smtRootOutcomeToProto(result.SmtRoot),
 	}, nil
+}
+
+// smtRootOutcomeToProto returns nil for nil input so enforcement-disabled
+// servers leave the field absent rather than zero-valued.
+func smtRootOutcomeToProto(o *linkverify.SmtRootOutcome) *pb.SmtRootOutcome {
+	if o == nil {
+		return nil
+	}
+	out := &pb.SmtRootOutcome{
+		Issuer:      o.IssuerName,
+		Match:       o.Match,
+		Expected:    o.Expected,
+		Observed:    o.Observed,
+		TrustSource: o.TrustSource,
+	}
+	if !o.TrustedAt.IsZero() {
+		out.TrustedAt = o.TrustedAt.Format(time.RFC3339)
+	}
+	return out
 }
 
 func (s *Server) VerifyTBS(ctx context.Context, req *pb.VerifyTBSRequest) (*pb.VerifyTBSResponse, error) {

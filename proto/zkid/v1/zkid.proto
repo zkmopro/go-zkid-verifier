@@ -55,6 +55,23 @@ message LinkVerifyResponse {
   bool id_verified = 3;
   bool persisted = 4;
   string error = 5;
+  // "proof_invalid" or "smt_root_mismatch"; empty when verified=true.
+  string reason = 6;
+  // Populated when SMT root enforcement ran; unset when SMT_ROOT_ENFORCE=disabled.
+  SmtRootOutcome smt_root = 7;
+}
+
+message SmtRootOutcome {
+  // "g2" or "g3", derived from cert_chain_type.
+  string issuer = 1;
+  bool match = 2;
+  // 0x-prefixed, lower-case, 32-byte hex.
+  string expected = 3;
+  string observed = 4;
+  // "onchain", "github", or "static".
+  string trust_source = 5;
+  // RFC3339 timestamp of the last successful refresh.
+  string trusted_at = 6;
 }
 
 message VerifyTBSRequest {

@@ -13,12 +13,12 @@ import (
 )
 
 type Handler struct {
-	store   store.Store
-	keysDir string
+	store    store.Store
+	verifier *linkverify.Verifier
 }
 
-func NewHandler(s store.Store, keysDir string) *Handler {
-	return &Handler{store: s, keysDir: keysDir}
+func NewHandler(s store.Store, v *linkverify.Verifier) *Handler {
+	return &Handler{store: s, verifier: v}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
@@ -27,6 +27,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /verify-tbs", h.VerifyTBSHash)
 	mux.HandleFunc("POST /link-verify", h.LinkVerify)
 	mux.HandleFunc("GET /users/{nullifier}/status", h.GetVerificationStatus)
+	mux.HandleFunc("GET /smt-root/status", h.GetSmtRootStatus)
 }
 
 func (h *Handler) CreateChallenge(w http.ResponseWriter, r *http.Request) {
@@ -71,16 +72,19 @@ type VerifyTBSRequest struct {
 }
 
 type VerifySuccessResponse struct {
-	Verified      bool                      `json:"verified"`
-	Nullifier     string                    `json:"nullifier"`
-	IDVerified    bool                      `json:"id_verified,omitempty"`
-	Persisted     bool                      `json:"persisted,omitempty"`
-	PublicSignals *linkverify.PublicSignals `json:"public_signals,omitempty"`
-	ParsedInputs  *verifier.ParsedInputs    `json:"parsed_inputs,omitempty"`
+	Verified      bool                       `json:"verified"`
+	Nullifier     string                     `json:"nullifier"`
+	IDVerified    bool                       `json:"id_verified,omitempty"`
+	Persisted     bool                       `json:"persisted,omitempty"`
+	PublicSignals *linkverify.PublicSignals  `json:"public_signals,omitempty"`
+	ParsedInputs  *verifier.ParsedInputs     `json:"parsed_inputs,omitempty"`
+	SmtRoot       *linkverify.SmtRootOutcome `json:"smt_root,omitempty"`
 }
 
 type VerifyFailResponse struct {
-	Verified bool `json:"verified"`
+	Verified bool                       `json:"verified"`
+	Reason   string                     `json:"reason,omitempty"`
+	SmtRoot  *linkverify.SmtRootOutcome `json:"smt_root,omitempty"`
 }
 
 func (h *Handler) VerifyTBSHash(w http.ResponseWriter, r *http.Request) {
@@ -156,44 +160,33 @@ func (h *Handler) LinkVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate and determine proof type
 	pt, err := parseCertChainType(req.CertChainType)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Run ZK link-verify
-	verified, signals, err := linkverify.Verify(linkverify.Request{
+	result, err := h.verifier.Verify(linkverify.Request{
 		CertChainProof: req.CertChainProof,
 		DeviceSigProof: req.DeviceSigProof,
 		ProofType:      pt,
-	}, h.keysDir)
+	})
 	if err != nil {
 		log.Printf("link-verify error: %v", err)
 		jsonError(w, "proof verification failed", http.StatusInternalServerError)
 		return
 	}
-
-	if !verified {
+	if !result.Verified {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(VerifyFailResponse{Verified: false})
+		json.NewEncoder(w).Encode(VerifyFailResponse{
+			Verified: false,
+			Reason:   result.Reason,
+			SmtRoot:  result.SmtRoot,
+		})
 		return
 	}
-
-	// Parse named public inputs; the recovered challenge identifies which DB challenge was used.
-	var parsed *verifier.ParsedInputs
-	var parseErr error
-	if pt == linkverify.ProofTypeRS4096 {
-		parsed, parseErr = verifier.ParsePublicInputsRS4096(signals.CertChain, signals.DeviceSig)
-	} else {
-		parsed, parseErr = verifier.ParsePublicInputsRS2048(signals.CertChain, signals.DeviceSig)
-	}
-	if parseErr != nil {
-		log.Printf("link-verify parse signals error: %v", parseErr)
-		jsonError(w, "failed to parse proof public inputs", http.StatusInternalServerError)
-		return
-	}
+	parsed := result.Parsed
+	signals := result.Signals
 	log.Printf("link-verify parsed inputs: challenge=%s pk_commit=%s subject_dn_hash=%s smt_root=%s serial_number=%s",
 		parsed.Challenge, parsed.PkCommit, parsed.SubjectDNHash, parsed.SmtRoot, parsed.SerialNumber)
 
@@ -234,7 +227,23 @@ func (h *Handler) LinkVerify(w http.ResponseWriter, r *http.Request) {
 		Persisted:     true,
 		PublicSignals: signals,
 		ParsedInputs:  parsed,
+		SmtRoot:       result.SmtRoot,
 	})
+}
+
+// GetSmtRootStatus returns {"enforced": false} when the verifier was built
+// without an smtroot.Provider, otherwise the full cache snapshot.
+func (h *Handler) GetSmtRootStatus(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if h.verifier == nil || h.verifier.SmtRoot == nil {
+		json.NewEncoder(w).Encode(map[string]any{"enforced": false})
+		return
+	}
+	resp := map[string]any{
+		"enforced": true,
+		"status":   h.verifier.SmtRoot.Status(),
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *Handler) GetVerificationStatus(w http.ResponseWriter, r *http.Request) {
