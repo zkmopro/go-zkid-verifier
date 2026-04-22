@@ -19,7 +19,7 @@ func setupServer(t *testing.T, ttl time.Duration) (*http.ServeMux, *store.SQLite
 		t.Fatalf("new store: %v", err)
 	}
 	t.Cleanup(func() { s.Close() })
-	handler := NewHandler(s, "")
+	handler := NewHandler(s, nil)
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
 	return mux, s

@@ -175,6 +175,20 @@ func ParsePublicInputsRS2048(certChain, deviceSig []string) (*ParsedInputs, erro
 	}, nil
 }
 
+// ParsePublicInputs dispatches to the variant parser. Prefer this over the
+// per-variant functions when t is not statically known.
+func ParsePublicInputs(signals *PublicSignals, t CertChainType) (*ParsedInputs, error) {
+	if signals == nil {
+		return nil, fmt.Errorf("nil public signals")
+	}
+	switch t {
+	case CertChainRS4096:
+		return ParsePublicInputsRS4096(signals.CertChain, signals.DeviceSig)
+	default:
+		return ParsePublicInputsRS2048(signals.CertChain, signals.DeviceSig)
+	}
+}
+
 // ParsePublicInputsRS4096 parses raw PublicSignals from an RS4096 link-verify
 // run into a single ParsedInputs value.
 func ParsePublicInputsRS4096(certChain, deviceSig []string) (*ParsedInputs, error) {
