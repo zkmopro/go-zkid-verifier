@@ -118,5 +118,4 @@ func TestVerifyRS4096(t *testing.T) {
 	t.Logf("pk_commit:          %s", pi.PkCommit)
 	t.Logf("issuer_rsa_modulus: %v", pi.IssuerRSAModulus)
 	t.Logf("smt_root:           %s", pi.SmtRoot)
-	t.Logf("serial_number:      %s", pi.SerialNumber)
 }
