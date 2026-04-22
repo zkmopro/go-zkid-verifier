@@ -164,7 +164,7 @@ func TestVerifier_SmtRootEnforcement(t *testing.T) {
 	matchingProvider := smtroot.NewStaticProvider(map[smtroot.IssuerID]smtroot.Root{
 		smtroot.IssuerG2: fixtureRoot,
 	})
-	v := NewVerifier(absKeysDir, matchingProvider)
+	v := &Verifier{KeysDir: absKeysDir, SmtRoot: matchingProvider, Logger: smtroot.DefaultLogger{}}
 	result, err := v.Verify(req)
 	if err != nil {
 		t.Fatalf("Verify with matching provider: %v", err)
@@ -183,7 +183,7 @@ func TestVerifier_SmtRootEnforcement(t *testing.T) {
 	wrongProvider := smtroot.NewStaticProvider(map[smtroot.IssuerID]smtroot.Root{
 		smtroot.IssuerG2: wrongRoot,
 	})
-	v2 := NewVerifier(absKeysDir, wrongProvider)
+	v2 := &Verifier{KeysDir: absKeysDir, SmtRoot: wrongProvider, Logger: smtroot.DefaultLogger{}}
 	result2, err := v2.Verify(req)
 	if err != nil {
 		t.Fatalf("Verify with wrong provider: %v", err)
@@ -216,7 +216,7 @@ func TestVerifier_NilProviderPassthrough(t *testing.T) {
 	ccProof, _ := os.ReadFile(filepath.Join(artifactsDir, "cert_chain_rs2048_proof.bin"))
 	dsProof, _ := os.ReadFile(filepath.Join(artifactsDir, "device_sig_rs2048_proof.bin"))
 
-	v := NewVerifier(absKeysDir, nil)
+	v := &Verifier{KeysDir: absKeysDir, Logger: smtroot.DefaultLogger{}}
 	result, err := v.Verify(Request{
 		CertChainProof: ccProof,
 		DeviceSigProof: dsProof,

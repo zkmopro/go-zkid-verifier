@@ -15,19 +15,6 @@ type Verifier struct {
 	KeysDir string
 	SmtRoot *smtroot.Provider
 	Logger  smtroot.Logger
-
-	// verifyFn is the FFI entry point; swapped in tests.
-	verifyFn func(Request, string) (bool, *PublicSignals, error)
-}
-
-// NewVerifier — pass a nil provider to disable SMT root enforcement.
-func NewVerifier(keysDir string, provider *smtroot.Provider) *Verifier {
-	return &Verifier{
-		KeysDir:  keysDir,
-		SmtRoot:  provider,
-		Logger:   smtroot.DefaultLogger{},
-		verifyFn: Verify,
-	}
 }
 
 // Result holds everything the handler needs to respond.
@@ -54,12 +41,7 @@ type SmtRootOutcome struct {
 // returned only for infrastructure failures (FFI crash, malformed signals,
 // missing trusted root for the mapped issuer).
 func (v *Verifier) Verify(req Request) (*Result, error) {
-	fn := v.verifyFn
-	if fn == nil {
-		fn = Verify
-	}
-
-	ffiVerified, signals, err := fn(req, v.KeysDir)
+	ffiVerified, signals, err := Verify(req, v.KeysDir)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +63,7 @@ func (v *Verifier) Verify(req Request) (*Result, error) {
 		return res, nil
 	}
 
-	outcome, err := v.checkRoot(req, parsed)
+	outcome, err := checkSmtRoot(req.ProofType, parsed, v.SmtRoot, v.Logger)
 	if err != nil {
 		return nil, err
 	}
@@ -93,17 +75,20 @@ func (v *Verifier) Verify(req Request) (*Result, error) {
 	return res, nil
 }
 
-func (v *Verifier) checkRoot(req Request, parsed *verifier.ParsedInputs) (*SmtRootOutcome, error) {
-	issuer := issuerForProofType(req.ProofType)
+// checkSmtRoot compares the proof's smt_root public input against the trusted
+// root for the issuer derived from pt. Pure function: callers own provider and
+// logger lifetimes.
+func checkSmtRoot(pt ProofType, parsed *verifier.ParsedInputs, provider *smtroot.Provider, logger smtroot.Logger) (*SmtRootOutcome, error) {
+	issuer := issuerForProofType(pt)
 	observed, err := smtroot.ParseRoot(parsed.SmtRoot)
 	if err != nil {
 		return nil, fmt.Errorf("parse proof smt_root %q: %w", parsed.SmtRoot, err)
 	}
-	trusted, ok := v.SmtRoot.Trusted(issuer)
+	trusted, ok := provider.Trusted(issuer)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrSmtRootUnavailable, issuer.LongName())
 	}
-	meta := v.SmtRoot.Meta()
+	meta := provider.Meta()
 	outcome := &SmtRootOutcome{
 		Issuer:      issuer,
 		IssuerName:  issuer.ShortName(),
@@ -113,29 +98,19 @@ func (v *Verifier) checkRoot(req Request, parsed *verifier.ParsedInputs) (*SmtRo
 		TrustSource: meta.SourceUsed,
 		TrustedAt:   meta.UpdatedAt,
 	}
-	kv := []any{
+	level, event := "info", "smt_root_check"
+	if !outcome.Match {
+		level, event = "warn", "smt_root_mismatch"
+	}
+	logger.Event(level, event,
 		"issuer", issuer.LongName(),
 		"expected", outcome.Expected,
 		"observed", outcome.Observed,
 		"match", outcome.Match,
 		"trust_source", outcome.TrustSource,
 		"cache_age_s", meta.CacheAgeSeconds,
-	}
-	logger := v.logger()
-	if outcome.Match {
-		logger.Event("info", "smt_root_check", kv...)
-	} else {
-		logger.Event("warn", "smt_root_mismatch", kv...)
-	}
+	)
 	return outcome, nil
-}
-
-// logger defends struct-literal test construction from panicking.
-func (v *Verifier) logger() smtroot.Logger {
-	if v.Logger == nil {
-		return smtroot.DefaultLogger{}
-	}
-	return v.Logger
 }
 
 // RS2048 → G2, RS4096 → G3.

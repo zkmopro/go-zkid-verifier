@@ -68,7 +68,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("smt root provider: %v", err)
 	}
-	verifier := linkverify.NewVerifier(keysDir, provider)
+	verifier := &linkverify.Verifier{
+		KeysDir: keysDir,
+		SmtRoot: provider,
+		Logger:  smtroot.DefaultLogger{},
+	}
 	if provider != nil {
 		provider.Start(ctx)
 		defer provider.Stop()
