@@ -43,6 +43,10 @@ type Store interface {
 	// Returns nil, nil if not found. Does NOT check expiry (caller's responsibility).
 	GetChallenge(ctx context.Context, id string) (*Challenge, error)
 
+	// GetChallengeByHex retrieves a challenge by its hex value (bytes_hex column).
+	// Returns nil, nil if not found. Does NOT check expiry (caller's responsibility).
+	GetChallengeByHex(ctx context.Context, bytesHex string) (*Challenge, error)
+
 	// VerifyAndRecord atomically validates the challenge, records a verification,
 	// and consumes the challenge inside a single DB transaction.
 	//

@@ -9,6 +9,21 @@ use subtle::ConstantTimeEq;
 
 thread_local! {
     static LAST_ERROR: RefCell<CString> = RefCell::new(CString::new("").unwrap());
+    static LAST_SIGNALS: RefCell<CString> = RefCell::new(CString::new("{}").unwrap());
+}
+
+fn field_to_hex<F: ff::PrimeField>(f: &F) -> String {
+    let repr = f.to_repr();
+    let bytes: &[u8] = repr.as_ref();
+    // to_repr() is little-endian; reverse to big-endian for standard hex display.
+    format!(
+        "0x{}",
+        bytes
+            .iter()
+            .rev()
+            .map(|b| format!("{:02x}", b))
+            .collect::<String>()
+    )
 }
 
 fn set_last_error(msg: &str) {
@@ -16,6 +31,28 @@ fn set_last_error(msg: &str) {
         *e.borrow_mut() =
             CString::new(msg).unwrap_or_else(|_| CString::new("unknown error").unwrap());
     });
+}
+
+fn set_last_signals(cc_hexes: Vec<String>, ds_hexes: Vec<String>) {
+    let to_json_array = |v: Vec<String>| -> String {
+        v.iter()
+            .map(|h| format!("\"{}\"", h))
+            .collect::<Vec<_>>()
+            .join(",")
+    };
+    let json = format!(
+        r#"{{"cert_chain":[{}],"device_sig":[{}]}}"#,
+        to_json_array(cc_hexes),
+        to_json_array(ds_hexes)
+    );
+    LAST_SIGNALS.with(|s| {
+        *s.borrow_mut() = CString::new(json).unwrap_or_else(|_| CString::new("{}").unwrap());
+    });
+}
+
+#[no_mangle]
+pub extern "C" fn zk_last_signals() -> *const std::os::raw::c_char {
+    LAST_SIGNALS.with(|s| s.borrow().as_ptr())
 }
 
 /// Returns a pointer to the last error message (valid until next FFI call on the same thread).
@@ -99,15 +136,17 @@ pub extern "C" fn zk_link_verify(
             .ct_eq(pk_commit_b.to_repr().as_ref())
             .into();
 
-        if commits_match {
-            1
-        } else {
-            0
-        }
+        let cc_hexes: Vec<String> = cc_public_values.iter().map(&field_to_hex).collect();
+        let ds_hexes: Vec<String> = ds_public_values.iter().map(&field_to_hex).collect();
+
+        (if commits_match { 1i32 } else { 0i32 }, cc_hexes, ds_hexes)
     }));
 
     match result {
-        Ok(v) => v,
+        Ok((v, cc_hexes, ds_hexes)) => {
+            set_last_signals(cc_hexes, ds_hexes);
+            v
+        }
         Err(e) => {
             let msg = e
                 .downcast_ref::<String>()

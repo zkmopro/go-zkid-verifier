@@ -35,13 +35,17 @@ func main() {
 	fmt.Printf("Verification type: %s\n", typeName)
 	fmt.Printf("Reading artifacts from: %s/keys/\n\n", baseDir)
 
-	valid, err := verifier.LinkVerify(baseDir, certChainType)
+	valid, signals, err := verifier.LinkVerify(baseDir, certChainType)
 	if err != nil {
 		log.Fatalf("Link-verify failed: %v", err)
 	}
 
 	if valid {
 		fmt.Println("Link verification PASSED: pk_commit_A == pk_commit_B")
+		if signals != nil {
+			fmt.Printf("Cert-chain public values: %v\n", signals.CertChain)
+			fmt.Printf("Device-sig public values: %v\n", signals.DeviceSig)
+		}
 	} else {
 		fmt.Println("Link verification FAILED: pk_commit mismatch")
 		os.Exit(1)

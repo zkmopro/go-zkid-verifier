@@ -9,6 +9,7 @@ import (
 
 	"github.com/zkmopro/go-zkid-verifier/linkverify"
 	"github.com/zkmopro/go-zkid-verifier/store"
+	"github.com/zkmopro/go-zkid-verifier/verifier"
 )
 
 type Handler struct {
@@ -34,6 +35,9 @@ func (h *Handler) CreateChallenge(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "failed to create challenge", http.StatusInternalServerError)
 		return
 	}
+	log.Printf("challenge id: %s", c.ID)
+	log.Printf("created challenge: %s", c.BytesHex)
+	log.Printf("challenge expires at: %v", c.ExpiresAt)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(c)
 }
@@ -67,15 +71,16 @@ type VerifyTBSRequest struct {
 }
 
 type VerifySuccessResponse struct {
-	Verified   bool   `json:"verified"`
-	Nullifier  string `json:"nullifier"`
-	IDVerified bool   `json:"id_verified,omitempty"`
-	Persisted  bool   `json:"persisted,omitempty"`
+	Verified      bool                      `json:"verified"`
+	Nullifier     string                    `json:"nullifier"`
+	IDVerified    bool                      `json:"id_verified,omitempty"`
+	Persisted     bool                      `json:"persisted,omitempty"`
+	PublicSignals *linkverify.PublicSignals `json:"public_signals,omitempty"`
+	ParsedInputs  *verifier.ParsedInputs    `json:"parsed_inputs,omitempty"`
 }
 
 type VerifyFailResponse struct {
-	Verified  bool   `json:"verified"`
-	Nullifier string `json:"nullifier"`
+	Verified bool `json:"verified"`
 }
 
 func (h *Handler) VerifyTBSHash(w http.ResponseWriter, r *http.Request) {
@@ -86,8 +91,8 @@ func (h *Handler) VerifyTBSHash(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.ChallengeID == "" || req.Nullifier == "" {
-		jsonError(w, "challenge_id and nullifier are required", http.StatusBadRequest)
+	if req.ChallengeID == "" {
+		jsonError(w, "challenge_id is required", http.StatusBadRequest)
 		return
 	}
 
@@ -110,10 +115,7 @@ func (h *Handler) VerifyTBSHash(w http.ResponseWriter, r *http.Request) {
 	verified := VerifyTBSHash(c.Bytes, req.TBSHashBits)
 	if !verified {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(VerifyFailResponse{
-			Verified:  false,
-			Nullifier: req.Nullifier,
-		})
+		json.NewEncoder(w).Encode(VerifyFailResponse{Verified: false})
 		return
 	}
 
@@ -136,11 +138,9 @@ func (h *Handler) VerifyTBSHash(w http.ResponseWriter, r *http.Request) {
 // --- Link-verify (ZK proof verification) ---
 
 type LinkVerifyRequest struct {
-	ChallengeID    string `json:"challenge_id"`
 	CertChainType  string `json:"cert_chain_type"`  // "rs2048" (default) or "rs4096"
-	CertChainProof []byte `json:"cert_chain_proof"`  // base64-encoded in JSON
-	DeviceSigProof []byte `json:"device_sig_proof"`  // base64-encoded in JSON
-	Nullifier      string `json:"nullifier"`
+	CertChainProof []byte `json:"cert_chain_proof"` // base64-encoded in JSON
+	DeviceSigProof []byte `json:"device_sig_proof"` // base64-encoded in JSON
 }
 
 func (h *Handler) LinkVerify(w http.ResponseWriter, r *http.Request) {
@@ -151,16 +151,8 @@ func (h *Handler) LinkVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.ChallengeID == "" {
-		jsonError(w, "challenge_id is required", http.StatusBadRequest)
-		return
-	}
 	if len(req.CertChainProof) == 0 || len(req.DeviceSigProof) == 0 {
 		jsonError(w, "cert_chain_proof and device_sig_proof are required", http.StatusBadRequest)
-		return
-	}
-	if req.Nullifier == "" {
-		jsonError(w, "nullifier is required", http.StatusBadRequest)
 		return
 	}
 
@@ -171,23 +163,8 @@ func (h *Handler) LinkVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up and validate challenge
-	c, err := h.store.GetChallenge(r.Context(), req.ChallengeID)
-	if err != nil {
-		jsonError(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-	if c == nil {
-		jsonError(w, "challenge not found or expired", http.StatusNotFound)
-		return
-	}
-	if time.Now().After(c.ExpiresAt) {
-		jsonError(w, "challenge expired", http.StatusBadRequest)
-		return
-	}
-
 	// Run ZK link-verify
-	verified, err := linkverify.Verify(linkverify.Request{
+	verified, signals, err := linkverify.Verify(linkverify.Request{
 		CertChainProof: req.CertChainProof,
 		DeviceSigProof: req.DeviceSigProof,
 		ProofType:      pt,
@@ -200,30 +177,63 @@ func (h *Handler) LinkVerify(w http.ResponseWriter, r *http.Request) {
 
 	if !verified {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(VerifyFailResponse{
-			Verified:  false,
-			Nullifier: req.Nullifier,
-		})
+		json.NewEncoder(w).Encode(VerifyFailResponse{Verified: false})
 		return
 	}
+
+	// Parse named public inputs; the recovered challenge identifies which DB challenge was used.
+	var parsed *verifier.ParsedInputs
+	var parseErr error
+	if pt == linkverify.ProofTypeRS4096 {
+		parsed, parseErr = verifier.ParsePublicInputsRS4096(signals.CertChain, signals.DeviceSig)
+	} else {
+		parsed, parseErr = verifier.ParsePublicInputsRS2048(signals.CertChain, signals.DeviceSig)
+	}
+	if parseErr != nil {
+		log.Printf("link-verify parse signals error: %v", parseErr)
+		jsonError(w, "failed to parse proof public inputs", http.StatusInternalServerError)
+		return
+	}
+	log.Printf("link-verify parsed inputs: challenge=%s pk_commit=%s subject_dn_hash=%s smt_root=%s serial_number=%s",
+		parsed.Challenge, parsed.PkCommit, parsed.SubjectDNHash, parsed.SmtRoot, parsed.SerialNumber)
+
+	// Look up the challenge by the value recovered from the proof.
+	c, err := h.store.GetChallengeByHex(r.Context(), parsed.Challenge)
+	if err != nil {
+		log.Printf("link-verify get challenge error: %v", err)
+		jsonError(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	if c == nil {
+		jsonError(w, "challenge not found or already consumed", http.StatusNotFound)
+		return
+	}
+	if time.Now().After(c.ExpiresAt) {
+		jsonError(w, "challenge expired", http.StatusBadRequest)
+		return
+	}
+
+	nullifier := parsed.SubjectDNHash
 
 	// Atomically: record verification + consume challenge
 	proofType := "link_rs2048"
 	if pt == linkverify.ProofTypeRS4096 {
 		proofType = "link_rs4096"
 	}
-	err = h.store.VerifyAndRecord(r.Context(), req.Nullifier, req.ChallengeID, nil, proofType)
+	err = h.store.VerifyAndRecord(r.Context(), nullifier, c.ID, nil, proofType)
 	if err != nil {
-		writeStoreError(w, err, req.Nullifier)
+		writeStoreError(w, err, nullifier)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(VerifySuccessResponse{
-		Verified:   true,
-		Nullifier:  req.Nullifier,
-		IDVerified: true,
-		Persisted:  true,
+		Verified:      true,
+		Nullifier:     nullifier,
+		IDVerified:    true,
+		Persisted:     true,
+		PublicSignals: signals,
+		ParsedInputs:  parsed,
 	})
 }
 
@@ -284,6 +294,7 @@ func writeStoreError(w http.ResponseWriter, err error, nullifier string) {
 	case errors.Is(err, store.ErrChallengeConsumed):
 		jsonError(w, "challenge already consumed", http.StatusGone)
 	default:
+		log.Printf("store error for nullifier %s: %v", nullifier, err)
 		jsonError(w, "internal server error", http.StatusInternalServerError)
 	}
 }

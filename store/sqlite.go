@@ -63,6 +63,15 @@ func NewSQLiteStore(dbPath string, ttl time.Duration) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("run migrations: %w", err)
 	}
 
+	// Add proof_type column if it was created before this column existed.
+	if _, err := db.Exec(`ALTER TABLE verifications ADD COLUMN proof_type TEXT NOT NULL DEFAULT 'tbs'`); err != nil {
+		// SQLite returns an error if the column already exists; ignore it.
+		if !strings.Contains(err.Error(), "duplicate column name") {
+			db.Close()
+			return nil, fmt.Errorf("migrate verifications.proof_type: %w", err)
+		}
+	}
+
 	return &SQLiteStore{db: db, ttl: ttl}, nil
 }
 
@@ -102,6 +111,35 @@ func (s *SQLiteStore) CreateChallenge(ctx context.Context) (*Challenge, error) {
 func (s *SQLiteStore) GetChallenge(ctx context.Context, id string) (*Challenge, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT id, bytes_hex, bytes_raw, expires_at FROM challenges WHERE id = ?`, id,
+	)
+
+	var c Challenge
+	var rawBytes []byte
+	var expiresAtStr string
+	if err := row.Scan(&c.ID, &c.BytesHex, &rawBytes, &expiresAtStr); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("scan challenge: %w", err)
+	}
+
+	if len(rawBytes) != 16 {
+		return nil, fmt.Errorf("corrupt challenge: bytes_raw has %d bytes, want 16", len(rawBytes))
+	}
+	copy(c.Bytes[:], rawBytes)
+
+	expiresAt, parseErr := parseTime(expiresAtStr)
+	if parseErr != nil {
+		return nil, fmt.Errorf("parse expires_at: %w", parseErr)
+	}
+	c.ExpiresAt = expiresAt
+
+	return &c, nil
+}
+
+func (s *SQLiteStore) GetChallengeByHex(ctx context.Context, bytesHex string) (*Challenge, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT id, bytes_hex, bytes_raw, expires_at FROM challenges WHERE bytes_hex = ?`, bytesHex,
 	)
 
 	var c Challenge
