@@ -306,10 +306,12 @@ type LinkVerifyResponse struct {
 	IdVerified bool                   `protobuf:"varint,3,opt,name=id_verified,json=idVerified,proto3" json:"id_verified,omitempty"`
 	Persisted  bool                   `protobuf:"varint,4,opt,name=persisted,proto3" json:"persisted,omitempty"`
 	Error      string                 `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
-	// "proof_invalid" or "smt_root_mismatch"; empty when verified=true.
+	// "proof_invalid", "smt_root_mismatch", or "issuer_modulus_mismatch"; empty when verified=true.
 	Reason string `protobuf:"bytes,6,opt,name=reason,proto3" json:"reason,omitempty"`
 	// Populated when SMT root enforcement ran; unset when SMT_ROOT_ENFORCE=disabled.
-	SmtRoot       *SmtRootOutcome `protobuf:"bytes,7,opt,name=smt_root,json=smtRoot,proto3" json:"smt_root,omitempty"`
+	SmtRoot *SmtRootOutcome `protobuf:"bytes,7,opt,name=smt_root,json=smtRoot,proto3" json:"smt_root,omitempty"`
+	// Populated when issuer-cert enforcement ran; unset when ISSUER_CERT_ENFORCE=disabled.
+	IssuerModulus *IssuerModulusOutcome `protobuf:"bytes,8,opt,name=issuer_modulus,json=issuerModulus,proto3" json:"issuer_modulus,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -389,6 +391,13 @@ func (x *LinkVerifyResponse) GetReason() string {
 func (x *LinkVerifyResponse) GetSmtRoot() *SmtRootOutcome {
 	if x != nil {
 		return x.SmtRoot
+	}
+	return nil
+}
+
+func (x *LinkVerifyResponse) GetIssuerModulus() *IssuerModulusOutcome {
+	if x != nil {
+		return x.IssuerModulus
 	}
 	return nil
 }
@@ -481,6 +490,86 @@ func (x *SmtRootOutcome) GetTrustedAt() string {
 	return ""
 }
 
+type IssuerModulusOutcome struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// "g2" or "g3", derived from cert_chain_type.
+	Issuer string `protobuf:"bytes,1,opt,name=issuer,proto3" json:"issuer,omitempty"`
+	Match  bool   `protobuf:"varint,2,opt,name=match,proto3" json:"match,omitempty"`
+	// 0x-prefixed SHA-256 of the trusted MOICA cert DER.
+	ExpectedSha256 string `protobuf:"bytes,3,opt,name=expected_sha256,json=expectedSha256,proto3" json:"expected_sha256,omitempty"`
+	// "embedded" or "https".
+	TrustSource string `protobuf:"bytes,4,opt,name=trust_source,json=trustSource,proto3" json:"trust_source,omitempty"`
+	// RFC3339 timestamp of the last cache update.
+	TrustedAt     string `protobuf:"bytes,5,opt,name=trusted_at,json=trustedAt,proto3" json:"trusted_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IssuerModulusOutcome) Reset() {
+	*x = IssuerModulusOutcome{}
+	mi := &file_proto_zkid_v1_zkid_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IssuerModulusOutcome) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IssuerModulusOutcome) ProtoMessage() {}
+
+func (x *IssuerModulusOutcome) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_zkid_v1_zkid_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IssuerModulusOutcome.ProtoReflect.Descriptor instead.
+func (*IssuerModulusOutcome) Descriptor() ([]byte, []int) {
+	return file_proto_zkid_v1_zkid_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *IssuerModulusOutcome) GetIssuer() string {
+	if x != nil {
+		return x.Issuer
+	}
+	return ""
+}
+
+func (x *IssuerModulusOutcome) GetMatch() bool {
+	if x != nil {
+		return x.Match
+	}
+	return false
+}
+
+func (x *IssuerModulusOutcome) GetExpectedSha256() string {
+	if x != nil {
+		return x.ExpectedSha256
+	}
+	return ""
+}
+
+func (x *IssuerModulusOutcome) GetTrustSource() string {
+	if x != nil {
+		return x.TrustSource
+	}
+	return ""
+}
+
+func (x *IssuerModulusOutcome) GetTrustedAt() string {
+	if x != nil {
+		return x.TrustedAt
+	}
+	return ""
+}
+
 var File_proto_zkid_v1_zkid_proto protoreflect.FileDescriptor
 
 const file_proto_zkid_v1_zkid_proto_rawDesc = "" +
@@ -504,7 +593,7 @@ const file_proto_zkid_v1_zkid_proto_rawDesc = "" +
 	"\x0fcert_chain_type\x18\x02 \x01(\tR\rcertChainType\x12(\n" +
 	"\x10cert_chain_proof\x18\x03 \x01(\fR\x0ecertChainProof\x12(\n" +
 	"\x10device_sig_proof\x18\x04 \x01(\fR\x0edeviceSigProof\x12\x1c\n" +
-	"\tnullifier\x18\x05 \x01(\tR\tnullifier\"\xef\x01\n" +
+	"\tnullifier\x18\x05 \x01(\tR\tnullifier\"\xb5\x02\n" +
 	"\x12LinkVerifyResponse\x12\x1a\n" +
 	"\bverified\x18\x01 \x01(\bR\bverified\x12\x1c\n" +
 	"\tnullifier\x18\x02 \x01(\tR\tnullifier\x12\x1f\n" +
@@ -513,7 +602,8 @@ const file_proto_zkid_v1_zkid_proto_rawDesc = "" +
 	"\tpersisted\x18\x04 \x01(\bR\tpersisted\x12\x14\n" +
 	"\x05error\x18\x05 \x01(\tR\x05error\x12\x16\n" +
 	"\x06reason\x18\x06 \x01(\tR\x06reason\x122\n" +
-	"\bsmt_root\x18\a \x01(\v2\x17.zkid.v1.SmtRootOutcomeR\asmtRoot\"\xb8\x01\n" +
+	"\bsmt_root\x18\a \x01(\v2\x17.zkid.v1.SmtRootOutcomeR\asmtRoot\x12D\n" +
+	"\x0eissuer_modulus\x18\b \x01(\v2\x1d.zkid.v1.IssuerModulusOutcomeR\rissuerModulus\"\xb8\x01\n" +
 	"\x0eSmtRootOutcome\x12\x16\n" +
 	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x12\x14\n" +
 	"\x05match\x18\x02 \x01(\bR\x05match\x12\x1a\n" +
@@ -521,7 +611,14 @@ const file_proto_zkid_v1_zkid_proto_rawDesc = "" +
 	"\bobserved\x18\x04 \x01(\tR\bobserved\x12!\n" +
 	"\ftrust_source\x18\x05 \x01(\tR\vtrustSource\x12\x1d\n" +
 	"\n" +
-	"trusted_at\x18\x06 \x01(\tR\ttrustedAt2\xf8\x01\n" +
+	"trusted_at\x18\x06 \x01(\tR\ttrustedAt\"\xaf\x01\n" +
+	"\x14IssuerModulusOutcome\x12\x16\n" +
+	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x12\x14\n" +
+	"\x05match\x18\x02 \x01(\bR\x05match\x12'\n" +
+	"\x0fexpected_sha256\x18\x03 \x01(\tR\x0eexpectedSha256\x12!\n" +
+	"\ftrust_source\x18\x04 \x01(\tR\vtrustSource\x12\x1d\n" +
+	"\n" +
+	"trusted_at\x18\x05 \x01(\tR\ttrustedAt2\xf8\x01\n" +
 	"\fZkIDVerifier\x12T\n" +
 	"\x0fCreateChallenge\x12\x1f.zkid.v1.CreateChallengeRequest\x1a .zkid.v1.CreateChallengeResponse\x12K\n" +
 	"\fGetChallenge\x12\x1c.zkid.v1.GetChallengeRequest\x1a\x1d.zkid.v1.GetChallengeResponse\x12E\n" +
@@ -540,7 +637,7 @@ func file_proto_zkid_v1_zkid_proto_rawDescGZIP() []byte {
 	return file_proto_zkid_v1_zkid_proto_rawDescData
 }
 
-var file_proto_zkid_v1_zkid_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_proto_zkid_v1_zkid_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_proto_zkid_v1_zkid_proto_goTypes = []any{
 	(*CreateChallengeRequest)(nil),  // 0: zkid.v1.CreateChallengeRequest
 	(*CreateChallengeResponse)(nil), // 1: zkid.v1.CreateChallengeResponse
@@ -549,20 +646,22 @@ var file_proto_zkid_v1_zkid_proto_goTypes = []any{
 	(*LinkVerifyRequest)(nil),       // 4: zkid.v1.LinkVerifyRequest
 	(*LinkVerifyResponse)(nil),      // 5: zkid.v1.LinkVerifyResponse
 	(*SmtRootOutcome)(nil),          // 6: zkid.v1.SmtRootOutcome
+	(*IssuerModulusOutcome)(nil),    // 7: zkid.v1.IssuerModulusOutcome
 }
 var file_proto_zkid_v1_zkid_proto_depIdxs = []int32{
 	6, // 0: zkid.v1.LinkVerifyResponse.smt_root:type_name -> zkid.v1.SmtRootOutcome
-	0, // 1: zkid.v1.ZkIDVerifier.CreateChallenge:input_type -> zkid.v1.CreateChallengeRequest
-	2, // 2: zkid.v1.ZkIDVerifier.GetChallenge:input_type -> zkid.v1.GetChallengeRequest
-	4, // 3: zkid.v1.ZkIDVerifier.LinkVerify:input_type -> zkid.v1.LinkVerifyRequest
-	1, // 4: zkid.v1.ZkIDVerifier.CreateChallenge:output_type -> zkid.v1.CreateChallengeResponse
-	3, // 5: zkid.v1.ZkIDVerifier.GetChallenge:output_type -> zkid.v1.GetChallengeResponse
-	5, // 6: zkid.v1.ZkIDVerifier.LinkVerify:output_type -> zkid.v1.LinkVerifyResponse
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	7, // 1: zkid.v1.LinkVerifyResponse.issuer_modulus:type_name -> zkid.v1.IssuerModulusOutcome
+	0, // 2: zkid.v1.ZkIDVerifier.CreateChallenge:input_type -> zkid.v1.CreateChallengeRequest
+	2, // 3: zkid.v1.ZkIDVerifier.GetChallenge:input_type -> zkid.v1.GetChallengeRequest
+	4, // 4: zkid.v1.ZkIDVerifier.LinkVerify:input_type -> zkid.v1.LinkVerifyRequest
+	1, // 5: zkid.v1.ZkIDVerifier.CreateChallenge:output_type -> zkid.v1.CreateChallengeResponse
+	3, // 6: zkid.v1.ZkIDVerifier.GetChallenge:output_type -> zkid.v1.GetChallengeResponse
+	5, // 7: zkid.v1.ZkIDVerifier.LinkVerify:output_type -> zkid.v1.LinkVerifyResponse
+	5, // [5:8] is the sub-list for method output_type
+	2, // [2:5] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_proto_zkid_v1_zkid_proto_init() }
@@ -576,7 +675,7 @@ func file_proto_zkid_v1_zkid_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_zkid_v1_zkid_proto_rawDesc), len(file_proto_zkid_v1_zkid_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
