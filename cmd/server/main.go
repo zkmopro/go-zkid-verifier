@@ -194,7 +194,6 @@ func buildSmtRootProvider(ctx context.Context) (*smtroot.Provider, error) {
 	return p, nil
 }
 
-// buildIssuerCertProvider returns nil when issuer-cert enforcement is disabled.
 func buildIssuerCertProvider(ctx context.Context) (*issuercert.Provider, error) {
 	if strings.ToLower(os.Getenv("ISSUER_CERT_ENFORCE")) == "disabled" {
 		log.Printf("ISSUER_CERT_ENFORCE=disabled — link-verify will NOT check the issuer modulus (dev only)")

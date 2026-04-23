@@ -20,7 +20,6 @@ var embeddedGrcaG2 []byte
 //go:embed certs/grca-g3.cer
 var embeddedGrcaG3 []byte
 
-// Pinned SHA-256 fingerprints for embedded certs.
 var (
 	// c4c462de463f856804dc898338d2cecb55fba74155851599d8fb7d70218fd1be
 	pinnedMoicaG2SHA256 = [32]byte{
@@ -44,7 +43,6 @@ var (
 	}
 )
 
-// LoadEmbedded parses and validates embedded MOICA and GRCA certs.
 func LoadEmbedded(now time.Time) (map[IssuerID]*CertRecord, error) {
 	grcaG2, err := parseRoot(embeddedGrcaG2, pinnedGrcaG2SHA256, "GRCA-G2")
 	if err != nil {
@@ -65,7 +63,6 @@ func LoadEmbedded(now time.Time) (map[IssuerID]*CertRecord, error) {
 	return map[IssuerID]*CertRecord{IssuerG2: g2, IssuerG3: g3}, nil
 }
 
-// GRCARootFor returns the embedded GRCA parent for an issuer.
 func GRCARootFor(id IssuerID) (*x509.Certificate, error) {
 	switch id {
 	case IssuerG2:

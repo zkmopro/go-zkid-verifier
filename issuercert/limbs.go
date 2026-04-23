@@ -12,7 +12,6 @@ const (
 	LimbsRS4096 = 34
 )
 
-// ModulusToLimbs converts n into k little-endian 121-bit hex limbs.
 func ModulusToLimbs(n *big.Int, k int) []string {
 	mask := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), LimbBits), big.NewInt(1))
 	out := make([]string, k)
@@ -27,7 +26,6 @@ func ModulusToLimbs(n *big.Int, k int) []string {
 	return out
 }
 
-// LimbsEqual compares two limb slices after hex normalization.
 func LimbsEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

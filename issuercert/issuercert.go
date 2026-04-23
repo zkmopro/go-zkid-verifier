@@ -20,7 +20,6 @@ const (
 	SourceHTTPS    = "https"
 )
 
-// CertRecord is a trusted MOICA CA cert snapshot.
 type CertRecord struct {
 	Parsed    *x509.Certificate
 	PubKey    *rsa.PublicKey
@@ -45,7 +44,6 @@ type Config struct {
 	Logger          smtroot.Logger
 }
 
-// AttemptStat mirrors smtroot.AttemptStat.
 type AttemptStat = smtroot.AttemptStat
 
 type CertStatus struct {
@@ -122,7 +120,6 @@ func NewProvider(cfg Config) (*Provider, error) {
 	return p, nil
 }
 
-// NewStaticProvider serves fixed records without refresh.
 func NewStaticProvider(records map[IssuerID]*CertRecord) *Provider {
 	p := &Provider{
 		now:      time.Now,
@@ -142,7 +139,6 @@ func (p *Provider) Trusted(issuer IssuerID) (*CertRecord, bool) {
 	return rec, ok
 }
 
-// TrustedWithMeta returns the cert and cache metadata under one read lock.
 func (p *Provider) TrustedWithMeta(issuer IssuerID) (*CertRecord, Meta, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()

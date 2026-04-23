@@ -11,7 +11,6 @@ import (
 
 var ErrNoSources = errors.New("issuercert: provider has no sources configured")
 
-// FetchNow refreshes all configured issuers concurrently.
 func (p *Provider) FetchNow(ctx context.Context, trigger string) error {
 	if len(p.sources) == 0 {
 		return ErrNoSources
@@ -94,7 +93,6 @@ func (p *Provider) fetchOne(ctx context.Context, trigger string, id IssuerID, sr
 	return nil
 }
 
-// Start launches the background refresher.
 func (p *Provider) Start(ctx context.Context) {
 	if p.refresh <= 0 {
 		return
@@ -102,7 +100,6 @@ func (p *Provider) Start(ctx context.Context) {
 	go p.loop(ctx)
 }
 
-// Stop stops the background refresher.
 func (p *Provider) Stop() {
 	p.stopOnce.Do(func() { close(p.stopCh) })
 }

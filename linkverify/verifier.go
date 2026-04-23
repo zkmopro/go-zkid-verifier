@@ -10,7 +10,6 @@ import (
 )
 
 
-// Verifier runs link verification with optional trust-anchor checks.
 type Verifier struct {
 	KeysDir    string
 	SmtRoot    *smtroot.Provider
@@ -39,7 +38,6 @@ type SmtRootOutcome struct {
 	TrustedAt   time.Time        `json:"trusted_at,omitempty"`
 }
 
-// IssuerModulusOutcome is the issuer-modulus comparison result.
 type IssuerModulusOutcome struct {
 	Issuer         smtroot.IssuerID `json:"-"`
 	IssuerName     string           `json:"issuer"`
@@ -49,7 +47,6 @@ type IssuerModulusOutcome struct {
 	TrustedAt      time.Time        `json:"trusted_at,omitempty"`
 }
 
-// Verify runs FFI verification and optional trust-anchor checks.
 func (v *Verifier) Verify(req Request) (*Result, error) {
 	ffiVerified, signals, err := Verify(req, v.KeysDir)
 	if err != nil {
@@ -96,7 +93,6 @@ func (v *Verifier) Verify(req Request) (*Result, error) {
 	return res, nil
 }
 
-// checkSmtRoot compares proof input smt_root with the trusted root.
 func checkSmtRoot(pt ProofType, parsed *verifier.ParsedInputs, provider *smtroot.Provider, logger smtroot.Logger) (*SmtRootOutcome, error) {
 	issuer := issuerForProofType(pt)
 	observed, err := smtroot.ParseRoot(parsed.SmtRoot)
@@ -132,7 +128,6 @@ func checkSmtRoot(pt ProofType, parsed *verifier.ParsedInputs, provider *smtroot
 	return outcome, nil
 }
 
-// checkIssuerModulus compares proof issuer limbs with trusted cert limbs.
 func checkIssuerModulus(pt ProofType, parsed *verifier.ParsedInputs, provider *issuercert.Provider, logger smtroot.Logger) (*IssuerModulusOutcome, error) {
 	issuer := issuerForProofType(pt)
 	rec, meta, ok := provider.TrustedWithMeta(issuer)

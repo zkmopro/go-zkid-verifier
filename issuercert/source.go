@@ -15,7 +15,6 @@ const (
 	maxCertBodyBytes = 64 * 1024
 )
 
-// Source fetches the raw DER bytes of one MOICA CA cert.
 type Source interface {
 	Issuer() IssuerID
 	Name() string
