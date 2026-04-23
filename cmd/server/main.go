@@ -14,6 +14,7 @@ import (
 	"github.com/zkmopro/go-zkid-verifier/challenge"
 	zkgrpc "github.com/zkmopro/go-zkid-verifier/grpc"
 	"github.com/zkmopro/go-zkid-verifier/httpapi"
+	"github.com/zkmopro/go-zkid-verifier/issuercert"
 	"github.com/zkmopro/go-zkid-verifier/keymanager"
 	"github.com/zkmopro/go-zkid-verifier/linkverify"
 	pb "github.com/zkmopro/go-zkid-verifier/proto/zkid/v1"
@@ -68,14 +69,23 @@ func main() {
 	if err != nil {
 		log.Fatalf("smt root provider: %v", err)
 	}
+	issuerProvider, err := buildIssuerCertProvider(ctx)
+	if err != nil {
+		log.Fatalf("issuer cert provider: %v", err)
+	}
 	verifier := &linkverify.Verifier{
-		KeysDir: keysDir,
-		SmtRoot: provider,
-		Logger:  smtroot.DefaultLogger{},
+		KeysDir:    keysDir,
+		SmtRoot:    provider,
+		IssuerCert: issuerProvider,
+		Logger:     smtroot.DefaultLogger{},
 	}
 	if provider != nil {
 		provider.Start(ctx)
 		defer provider.Stop()
+	}
+	if issuerProvider != nil {
+		issuerProvider.Start(ctx)
+		defer issuerProvider.Stop()
 	}
 
 	service := linkverify.NewService(verifier, s)
@@ -85,7 +95,7 @@ func main() {
 		log.Fatalf("gRPC listen on %s: %v", grpcAddr, err)
 	}
 
-	mux := httpapi.NewRouter(service, s, provider)
+	mux := httpapi.NewRouter(service, s, provider, issuerProvider)
 
 	fmt.Printf("=== zkID Verifier Server ===\n")
 	fmt.Printf("HTTP listening on %s\n", httpAddr)
@@ -96,7 +106,8 @@ func main() {
 	fmt.Printf("  POST /challenge              - Generate a new challenge\n")
 	fmt.Printf("  GET  /challenge/{id}         - Retrieve a challenge\n")
 	fmt.Printf("  POST /link-verify            - Verify ZK proofs with pk_commit linkage\n")
-	fmt.Printf("  GET  /smt-root/status        - Query trusted SMT root cache\n\n")
+	fmt.Printf("  GET  /smt-root/status        - Query trusted SMT root cache\n")
+	fmt.Printf("  GET  /issuer-cert/status     - Query trusted MOICA issuer cert cache\n\n")
 
 	go func() {
 		grpcServer := grpc.NewServer(
@@ -179,6 +190,39 @@ func buildSmtRootProvider(ctx context.Context) (*smtroot.Provider, error) {
 	defer cancel()
 	if err := p.FetchNow(startupCtx, "startup"); err != nil {
 		return nil, fmt.Errorf("startup fetch (set SMT_ROOT_ENFORCE=disabled to skip): %w", err)
+	}
+	return p, nil
+}
+
+// buildIssuerCertProvider returns nil when issuer-cert enforcement is disabled.
+func buildIssuerCertProvider(ctx context.Context) (*issuercert.Provider, error) {
+	if strings.ToLower(os.Getenv("ISSUER_CERT_ENFORCE")) == "disabled" {
+		log.Printf("ISSUER_CERT_ENFORCE=disabled — link-verify will NOT check the issuer modulus (dev only)")
+		return nil, nil
+	}
+
+	timeout := envDuration("ISSUER_CERT_FETCH_TIMEOUT", 10*time.Second)
+	refresh := envDuration("ISSUER_CERT_REFRESH_INTERVAL", 24*time.Hour)
+
+	sources := issuercert.DefaultSources(
+		os.Getenv("ISSUER_CERT_G2_URL"),
+		os.Getenv("ISSUER_CERT_G3_URL"),
+		timeout,
+	)
+
+	p, err := issuercert.NewProvider(issuercert.Config{
+		Sources:         sources,
+		RefreshInterval: refresh,
+		FetchTimeout:    timeout,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("embedded issuer certs (set ISSUER_CERT_ENFORCE=disabled to skip): %w", err)
+	}
+
+	startupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if err := p.FetchNow(startupCtx, "startup"); err != nil {
+		log.Printf("issuer cert startup fetch failed (using embedded): %v", err)
 	}
 	return p, nil
 }
