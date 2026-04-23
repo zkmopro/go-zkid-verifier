@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/zkmopro/go-zkid-verifier/issuercert"
 	"github.com/zkmopro/go-zkid-verifier/smtroot"
 	"github.com/zkmopro/go-zkid-verifier/verifier"
 )
@@ -106,3 +107,89 @@ func mustRoot(t *testing.T, s string) smtroot.Root {
 type noopLogger struct{}
 
 func (noopLogger) Event(_, _ string, _ ...any) {}
+
+var (
+	limbsMatch    = []string{"0x01", "0x02", "0x03"}
+	limbsMismatch = []string{"0x01", "0x02", "0x04"}
+)
+
+func stubCertRecord(limbs []string, source string) *issuercert.CertRecord {
+	return &issuercert.CertRecord{Limbs: limbs, Source: source}
+}
+
+func TestCheckIssuerModulus_Match(t *testing.T) {
+	provider := issuercert.NewStaticProvider(map[issuercert.IssuerID]*issuercert.CertRecord{
+		issuercert.IssuerG2: stubCertRecord(limbsMatch, "embedded"),
+	})
+	parsed := &verifier.ParsedInputs{IssuerRSAModulus: limbsMatch}
+
+	outcome, err := checkIssuerModulus(ProofTypeRS2048, parsed, provider, noopLogger{})
+	if err != nil {
+		t.Fatalf("checkIssuerModulus: %v", err)
+	}
+	if !outcome.Match {
+		t.Fatalf("expected Match=true, got %+v", outcome)
+	}
+	if outcome.IssuerName != "g2" {
+		t.Errorf("IssuerName = %q, want g2", outcome.IssuerName)
+	}
+	if outcome.TrustSource != "embedded" {
+		t.Errorf("TrustSource = %q, want embedded", outcome.TrustSource)
+	}
+}
+
+func TestCheckIssuerModulus_Mismatch(t *testing.T) {
+	provider := issuercert.NewStaticProvider(map[issuercert.IssuerID]*issuercert.CertRecord{
+		issuercert.IssuerG2: stubCertRecord(limbsMatch, "embedded"),
+	})
+	parsed := &verifier.ParsedInputs{IssuerRSAModulus: limbsMismatch}
+
+	outcome, err := checkIssuerModulus(ProofTypeRS2048, parsed, provider, noopLogger{})
+	if err != nil {
+		t.Fatalf("checkIssuerModulus: %v", err)
+	}
+	if outcome.Match {
+		t.Fatalf("expected Match=false on mismatch")
+	}
+}
+
+func TestCheckIssuerModulus_RS4096MapsToG3(t *testing.T) {
+	provider := issuercert.NewStaticProvider(map[issuercert.IssuerID]*issuercert.CertRecord{
+		issuercert.IssuerG3: stubCertRecord(limbsMatch, "embedded"),
+	})
+	parsed := &verifier.ParsedInputs{IssuerRSAModulus: limbsMatch}
+
+	outcome, err := checkIssuerModulus(ProofTypeRS4096, parsed, provider, noopLogger{})
+	if err != nil {
+		t.Fatalf("checkIssuerModulus: %v", err)
+	}
+	if !outcome.Match || outcome.IssuerName != "g3" {
+		t.Fatalf("expected match on g3, got %+v", outcome)
+	}
+}
+
+func TestCheckIssuerModulus_UnavailableWhenIssuerMissing(t *testing.T) {
+	provider := issuercert.NewStaticProvider(map[issuercert.IssuerID]*issuercert.CertRecord{
+		issuercert.IssuerG3: stubCertRecord(limbsMatch, "embedded"),
+	})
+	parsed := &verifier.ParsedInputs{IssuerRSAModulus: limbsMatch}
+
+	_, err := checkIssuerModulus(ProofTypeRS2048, parsed, provider, noopLogger{})
+	if err == nil {
+		t.Fatal("expected error when trusted cert is missing for mapped issuer")
+	}
+	if !errors.Is(err, ErrIssuerCertUnavailable) {
+		t.Errorf("got %v, want ErrIssuerCertUnavailable", err)
+	}
+}
+
+func TestCheckIssuerModulus_LimbCountMismatch(t *testing.T) {
+	provider := issuercert.NewStaticProvider(map[issuercert.IssuerID]*issuercert.CertRecord{
+		issuercert.IssuerG2: stubCertRecord(limbsMatch, "embedded"),
+	})
+	parsed := &verifier.ParsedInputs{IssuerRSAModulus: []string{"0x01"}}
+
+	if _, err := checkIssuerModulus(ProofTypeRS2048, parsed, provider, noopLogger{}); err == nil {
+		t.Fatal("expected error on limb count mismatch")
+	}
+}

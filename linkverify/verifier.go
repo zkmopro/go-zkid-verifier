@@ -4,26 +4,28 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/zkmopro/go-zkid-verifier/issuercert"
 	"github.com/zkmopro/go-zkid-verifier/smtroot"
 	"github.com/zkmopro/go-zkid-verifier/verifier"
 )
 
-// Verifier orchestrates link-verify with optional SMT-root enforcement.
-// A nil SmtRoot disables root checking — production must configure it; nil is
-// for tests and local dev with historical fixtures.
+
+// Verifier runs link verification with optional trust-anchor checks.
 type Verifier struct {
-	KeysDir string
-	SmtRoot *smtroot.Provider
-	Logger  smtroot.Logger
+	KeysDir    string
+	SmtRoot    *smtroot.Provider
+	IssuerCert *issuercert.Provider
+	Logger     smtroot.Logger
 }
 
 // Result holds everything the handler needs to respond.
 type Result struct {
-	Verified bool
-	Reason   string
-	Signals  *PublicSignals
-	Parsed   *verifier.ParsedInputs
-	SmtRoot  *SmtRootOutcome
+	Verified       bool
+	Reason         string
+	Signals        *PublicSignals
+	Parsed         *verifier.ParsedInputs
+	SmtRoot        *SmtRootOutcome
+	IssuerModulus  *IssuerModulusOutcome
 }
 
 // SmtRootOutcome is the outcome of the proof-vs-trusted-root comparison.
@@ -37,9 +39,17 @@ type SmtRootOutcome struct {
 	TrustedAt   time.Time        `json:"trusted_at,omitempty"`
 }
 
-// Verify returns a non-nil Result whenever the FFI did not error. An error is
-// returned only for infrastructure failures (FFI crash, malformed signals,
-// missing trusted root for the mapped issuer).
+// IssuerModulusOutcome is the issuer-modulus comparison result.
+type IssuerModulusOutcome struct {
+	Issuer         smtroot.IssuerID `json:"-"`
+	IssuerName     string           `json:"issuer"`
+	Match          bool             `json:"match"`
+	ExpectedSHA256 string           `json:"expected_sha256"`
+	TrustSource    string           `json:"trust_source,omitempty"`
+	TrustedAt      time.Time        `json:"trusted_at,omitempty"`
+}
+
+// Verify runs FFI verification and optional trust-anchor checks.
 func (v *Verifier) Verify(req Request) (*Result, error) {
 	ffiVerified, signals, err := Verify(req, v.KeysDir)
 	if err != nil {
@@ -59,25 +69,34 @@ func (v *Verifier) Verify(req Request) (*Result, error) {
 	}
 
 	res := &Result{Verified: true, Signals: signals, Parsed: parsed}
-	if v.SmtRoot == nil {
-		return res, nil
+
+	if v.SmtRoot != nil {
+		outcome, err := checkSmtRoot(req.ProofType, parsed, v.SmtRoot, v.Logger)
+		if err != nil {
+			return nil, err
+		}
+		res.SmtRoot = outcome
+		if !outcome.Match {
+			res.Verified = false
+			res.Reason = ReasonSmtRootMismatch
+		}
 	}
 
-	outcome, err := checkSmtRoot(req.ProofType, parsed, v.SmtRoot, v.Logger)
-	if err != nil {
-		return nil, err
-	}
-	res.SmtRoot = outcome
-	if !outcome.Match {
-		res.Verified = false
-		res.Reason = ReasonSmtRootMismatch
+	if v.IssuerCert != nil {
+		outcome, err := checkIssuerModulus(req.ProofType, parsed, v.IssuerCert, v.Logger)
+		if err != nil {
+			return nil, err
+		}
+		res.IssuerModulus = outcome
+		if !outcome.Match && res.Reason == "" {
+			res.Verified = false
+			res.Reason = ReasonIssuerModulusMismatch
+		}
 	}
 	return res, nil
 }
 
-// checkSmtRoot compares the proof's smt_root public input against the trusted
-// root for the issuer derived from pt. Pure function: callers own provider and
-// logger lifetimes.
+// checkSmtRoot compares proof input smt_root with the trusted root.
 func checkSmtRoot(pt ProofType, parsed *verifier.ParsedInputs, provider *smtroot.Provider, logger smtroot.Logger) (*SmtRootOutcome, error) {
 	issuer := issuerForProofType(pt)
 	observed, err := smtroot.ParseRoot(parsed.SmtRoot)
@@ -107,6 +126,39 @@ func checkSmtRoot(pt ProofType, parsed *verifier.ParsedInputs, provider *smtroot
 		"expected", outcome.Expected,
 		"observed", outcome.Observed,
 		"match", outcome.Match,
+		"trust_source", outcome.TrustSource,
+		"cache_age_s", meta.CacheAgeSeconds,
+	)
+	return outcome, nil
+}
+
+// checkIssuerModulus compares proof issuer limbs with trusted cert limbs.
+func checkIssuerModulus(pt ProofType, parsed *verifier.ParsedInputs, provider *issuercert.Provider, logger smtroot.Logger) (*IssuerModulusOutcome, error) {
+	issuer := issuerForProofType(pt)
+	rec, meta, ok := provider.TrustedWithMeta(issuer)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrIssuerCertUnavailable, issuer.LongName())
+	}
+	if got, want := len(parsed.IssuerRSAModulus), len(rec.Limbs); got != want {
+		return nil, fmt.Errorf("issuer modulus limb count: got %d, want %d for %s", got, want, issuer.LongName())
+	}
+	match := issuercert.LimbsEqual(rec.Limbs, parsed.IssuerRSAModulus)
+	outcome := &IssuerModulusOutcome{
+		Issuer:         issuer,
+		IssuerName:     issuer.ShortName(),
+		Match:          match,
+		ExpectedSHA256: rec.SHA256Hex,
+		TrustSource:    rec.Source,
+		TrustedAt:      meta.UpdatedAt,
+	}
+	level, event := "info", "issuer_modulus_check"
+	if !match {
+		level, event = "warn", "issuer_modulus_mismatch"
+	}
+	logger.Event(level, event,
+		"issuer", issuer.LongName(),
+		"expected_sha256", outcome.ExpectedSHA256,
+		"match", match,
 		"trust_source", outcome.TrustSource,
 		"cache_age_s", meta.CacheAgeSeconds,
 	)
