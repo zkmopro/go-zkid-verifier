@@ -13,9 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Server implements the ZkIDVerifier gRPC service as a thin adapter over
-// linkverify.Service. Challenge CRUD reads directly from the store; link-verify
-// delegates to the service so semantics stay in sync with the HTTP transport.
+// Server implements the zkid gRPC service.
 type Server struct {
 	pb.UnimplementedZkIDVerifierServer
 	service *linkverify.Service
@@ -104,8 +102,6 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 	}, nil
 }
 
-// smtRootOutcomeToProto returns nil for nil input so enforcement-disabled
-// servers leave the field absent rather than zero-valued.
 func smtRootOutcomeToProto(o *linkverify.SmtRootOutcome) *pb.SmtRootOutcome {
 	if o == nil {
 		return nil

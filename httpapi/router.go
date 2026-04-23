@@ -8,9 +8,6 @@ import (
 	"github.com/zkmopro/go-zkid-verifier/store"
 )
 
-// NewRouter builds the http.Handler for all REST endpoints. A nil service
-// omits /link-verify (tests that only exercise /challenge routes). A nil
-// provider reports enforcement disabled on /smt-root/status.
 func NewRouter(service *linkverify.Service, s store.Store, provider *smtroot.Provider) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /challenge", createChallenge(s))

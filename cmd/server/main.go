@@ -49,7 +49,6 @@ func main() {
 		corsOrigin = "*"
 	}
 
-	// Download verifying keys if missing
 	log.Printf("Checking verifying keys in %s...", keysDir)
 	if err := keymanager.EnsureKeys(keysDir); err != nil {
 		log.Printf("WARNING: key download failed: %v", err)
@@ -81,7 +80,6 @@ func main() {
 
 	service := linkverify.NewService(verifier, s)
 
-	// Bind gRPC listener in main (fail fast before any server starts)
 	grpcLis, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
 		log.Fatalf("gRPC listen on %s: %v", grpcAddr, err)
@@ -100,10 +98,9 @@ func main() {
 	fmt.Printf("  POST /link-verify            - Verify ZK proofs with pk_commit linkage\n")
 	fmt.Printf("  GET  /smt-root/status        - Query trusted SMT root cache\n\n")
 
-	// Start gRPC server in a goroutine (listener already bound)
 	go func() {
 		grpcServer := grpc.NewServer(
-			grpc.MaxRecvMsgSize(2 * 1024 * 1024), // 2MB, match HTTP limit
+			grpc.MaxRecvMsgSize(2 * 1024 * 1024),
 		)
 		pb.RegisterZkIDVerifierServer(grpcServer, zkgrpc.NewServer(service, s))
 		log.Printf("gRPC server started on %s", grpcAddr)
@@ -149,8 +146,7 @@ func (w *statusWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
-// buildSmtRootProvider returns (nil, nil) when SMT_ROOT_ENFORCE=disabled.
-// Otherwise it requires at least one source to succeed at boot (fail-closed).
+// buildSmtRootProvider returns nil when SMT root enforcement is disabled.
 func buildSmtRootProvider(ctx context.Context) (*smtroot.Provider, error) {
 	mode := strings.ToLower(os.Getenv("SMT_ROOT_ENFORCE"))
 	if mode == "disabled" {

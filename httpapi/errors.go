@@ -9,14 +9,12 @@ import (
 	"github.com/zkmopro/go-zkid-verifier/store"
 )
 
-// jsonError writes a JSON error response with the correct Content-Type.
 func jsonError(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
 
-// writeStoreError maps store sentinel errors to JSON HTTP responses.
 func writeStoreError(w http.ResponseWriter, err error, nullifier string) {
 	switch {
 	case errors.Is(err, store.ErrDuplicateNullifier):

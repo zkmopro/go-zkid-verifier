@@ -12,10 +12,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// mapServiceError is the only new surface in grpc/server.go that isn't
-// exercised by integration tests (the FFI path requires proof fixtures).
-// These checks pin the code mapping, including the new Unavailable path for
-// smt-root fetch failures.
 func TestMapServiceError(t *testing.T) {
 	cases := []struct {
 		name     string

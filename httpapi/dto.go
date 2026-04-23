@@ -1,9 +1,5 @@
 package httpapi
 
-// JSON shapes in this file are the public /link-verify contract. Field tags
-// and order must not drift; re-exporting internal pointer types keeps JSON
-// output byte-identical to the pre-refactor response from package challenge.
-
 import (
 	"github.com/zkmopro/go-zkid-verifier/linkverify"
 	"github.com/zkmopro/go-zkid-verifier/verifier"

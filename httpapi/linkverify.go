@@ -38,8 +38,6 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 		if err != nil {
 			switch {
 			case errors.Is(err, store.ErrChallengeNotFound):
-				// Custom message — /link-verify collapses "not found" and
-				// "already consumed by an earlier verify" into one 404.
 				jsonError(w, "challenge not found or already consumed", http.StatusNotFound)
 			case errors.Is(err, linkverify.ErrSmtRootUnavailable):
 				log.Printf("link-verify smt root unavailable: %v", err)
@@ -59,9 +57,6 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 			return
 		}
 		if !result.Verified {
-			// 409 on smt_root_mismatch lets clients distinguish a stale root
-			// (retry after refresh) from an invalid proof; proof_invalid stays
-			// 200 because the pipeline ran to completion.
 			status := http.StatusOK
 			if result.Reason == linkverify.ReasonSmtRootMismatch {
 				status = http.StatusConflict
