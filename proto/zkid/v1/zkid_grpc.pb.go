@@ -19,11 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ZkIDVerifier_CreateChallenge_FullMethodName       = "/zkid.v1.ZkIDVerifier/CreateChallenge"
-	ZkIDVerifier_GetChallenge_FullMethodName          = "/zkid.v1.ZkIDVerifier/GetChallenge"
-	ZkIDVerifier_LinkVerify_FullMethodName            = "/zkid.v1.ZkIDVerifier/LinkVerify"
-	ZkIDVerifier_VerifyTBS_FullMethodName             = "/zkid.v1.ZkIDVerifier/VerifyTBS"
-	ZkIDVerifier_GetVerificationStatus_FullMethodName = "/zkid.v1.ZkIDVerifier/GetVerificationStatus"
+	ZkIDVerifier_CreateChallenge_FullMethodName = "/zkid.v1.ZkIDVerifier/CreateChallenge"
+	ZkIDVerifier_GetChallenge_FullMethodName    = "/zkid.v1.ZkIDVerifier/GetChallenge"
+	ZkIDVerifier_LinkVerify_FullMethodName      = "/zkid.v1.ZkIDVerifier/LinkVerify"
 )
 
 // ZkIDVerifierClient is the client API for ZkIDVerifier service.
@@ -36,10 +34,6 @@ type ZkIDVerifierClient interface {
 	GetChallenge(ctx context.Context, in *GetChallengeRequest, opts ...grpc.CallOption) (*GetChallengeResponse, error)
 	// LinkVerify verifies cert-chain and device-sig proofs with pk_commit linkage.
 	LinkVerify(ctx context.Context, in *LinkVerifyRequest, opts ...grpc.CallOption) (*LinkVerifyResponse, error)
-	// VerifyTBS verifies a TBS hash against a challenge (legacy endpoint).
-	VerifyTBS(ctx context.Context, in *VerifyTBSRequest, opts ...grpc.CallOption) (*VerifyTBSResponse, error)
-	// GetVerificationStatus retrieves verification status by nullifier.
-	GetVerificationStatus(ctx context.Context, in *GetVerificationStatusRequest, opts ...grpc.CallOption) (*GetVerificationStatusResponse, error)
 }
 
 type zkIDVerifierClient struct {
@@ -80,26 +74,6 @@ func (c *zkIDVerifierClient) LinkVerify(ctx context.Context, in *LinkVerifyReque
 	return out, nil
 }
 
-func (c *zkIDVerifierClient) VerifyTBS(ctx context.Context, in *VerifyTBSRequest, opts ...grpc.CallOption) (*VerifyTBSResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(VerifyTBSResponse)
-	err := c.cc.Invoke(ctx, ZkIDVerifier_VerifyTBS_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *zkIDVerifierClient) GetVerificationStatus(ctx context.Context, in *GetVerificationStatusRequest, opts ...grpc.CallOption) (*GetVerificationStatusResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetVerificationStatusResponse)
-	err := c.cc.Invoke(ctx, ZkIDVerifier_GetVerificationStatus_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // ZkIDVerifierServer is the server API for ZkIDVerifier service.
 // All implementations must embed UnimplementedZkIDVerifierServer
 // for forward compatibility.
@@ -110,10 +84,6 @@ type ZkIDVerifierServer interface {
 	GetChallenge(context.Context, *GetChallengeRequest) (*GetChallengeResponse, error)
 	// LinkVerify verifies cert-chain and device-sig proofs with pk_commit linkage.
 	LinkVerify(context.Context, *LinkVerifyRequest) (*LinkVerifyResponse, error)
-	// VerifyTBS verifies a TBS hash against a challenge (legacy endpoint).
-	VerifyTBS(context.Context, *VerifyTBSRequest) (*VerifyTBSResponse, error)
-	// GetVerificationStatus retrieves verification status by nullifier.
-	GetVerificationStatus(context.Context, *GetVerificationStatusRequest) (*GetVerificationStatusResponse, error)
 	mustEmbedUnimplementedZkIDVerifierServer()
 }
 
@@ -132,12 +102,6 @@ func (UnimplementedZkIDVerifierServer) GetChallenge(context.Context, *GetChallen
 }
 func (UnimplementedZkIDVerifierServer) LinkVerify(context.Context, *LinkVerifyRequest) (*LinkVerifyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method LinkVerify not implemented")
-}
-func (UnimplementedZkIDVerifierServer) VerifyTBS(context.Context, *VerifyTBSRequest) (*VerifyTBSResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method VerifyTBS not implemented")
-}
-func (UnimplementedZkIDVerifierServer) GetVerificationStatus(context.Context, *GetVerificationStatusRequest) (*GetVerificationStatusResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetVerificationStatus not implemented")
 }
 func (UnimplementedZkIDVerifierServer) mustEmbedUnimplementedZkIDVerifierServer() {}
 func (UnimplementedZkIDVerifierServer) testEmbeddedByValue()                      {}
@@ -214,42 +178,6 @@ func _ZkIDVerifier_LinkVerify_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ZkIDVerifier_VerifyTBS_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(VerifyTBSRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ZkIDVerifierServer).VerifyTBS(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ZkIDVerifier_VerifyTBS_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ZkIDVerifierServer).VerifyTBS(ctx, req.(*VerifyTBSRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ZkIDVerifier_GetVerificationStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetVerificationStatusRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ZkIDVerifierServer).GetVerificationStatus(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ZkIDVerifier_GetVerificationStatus_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ZkIDVerifierServer).GetVerificationStatus(ctx, req.(*GetVerificationStatusRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // ZkIDVerifier_ServiceDesc is the grpc.ServiceDesc for ZkIDVerifier service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -268,14 +196,6 @@ var ZkIDVerifier_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "LinkVerify",
 			Handler:    _ZkIDVerifier_LinkVerify_Handler,
-		},
-		{
-			MethodName: "VerifyTBS",
-			Handler:    _ZkIDVerifier_VerifyTBS_Handler,
-		},
-		{
-			MethodName: "GetVerificationStatus",
-			Handler:    _ZkIDVerifier_GetVerificationStatus_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

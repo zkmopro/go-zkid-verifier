@@ -232,3 +232,42 @@ func TestVerifier_NilProviderPassthrough(t *testing.T) {
 		t.Errorf("expected nil SmtRoot with nil provider, got %+v", result.SmtRoot)
 	}
 }
+
+func TestParseProofType(t *testing.T) {
+	cases := []struct {
+		in      string
+		want    ProofType
+		wantErr bool
+	}{
+		{"", ProofTypeRS2048, false},
+		{"rs2048", ProofTypeRS2048, false},
+		{"rs4096", ProofTypeRS4096, false},
+		{"RS2048", "", true},
+		{"rs8192", "", true},
+		{"tbs", "", true},
+	}
+	for _, c := range cases {
+		got, err := ParseProofType(c.in)
+		if c.wantErr {
+			if err == nil {
+				t.Errorf("ParseProofType(%q): want error, got %q", c.in, got)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("ParseProofType(%q): unexpected error %v", c.in, err)
+		}
+		if got != c.want {
+			t.Errorf("ParseProofType(%q): got %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestProofTypeStoreKey(t *testing.T) {
+	if got := ProofTypeRS2048.StoreKey(); got != "link_rs2048" {
+		t.Errorf("RS2048.StoreKey() = %q, want link_rs2048", got)
+	}
+	if got := ProofTypeRS4096.StoreKey(); got != "link_rs4096" {
+		t.Errorf("RS4096.StoreKey() = %q, want link_rs4096", got)
+	}
+}

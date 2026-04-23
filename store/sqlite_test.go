@@ -128,45 +128,8 @@ func TestVerifyAndRecordHappyPath(t *testing.T) {
 	s := newTestStore(t)
 	c, _ := s.CreateChallenge(context.Background())
 
-	err := s.VerifyAndRecord(context.Background(), "nullifier-1", c.ID, nil, "tbs")
-	if err != nil {
+	if err := s.VerifyAndRecord(context.Background(), "nullifier-1", c.ID, nil, "link_rs2048"); err != nil {
 		t.Fatalf("verify: %v", err)
-	}
-
-	rec, err := s.GetVerification(context.Background(), "nullifier-1")
-	if err != nil {
-		t.Fatalf("get verification: %v", err)
-	}
-	if rec == nil {
-		t.Fatal("nil verification")
-	}
-	if !rec.IDVerified {
-		t.Fatal("not verified")
-	}
-	if rec.Nullifier != "nullifier-1" {
-		t.Fatalf("nullifier: got %s, want nullifier-1", rec.Nullifier)
-	}
-	if rec.ChallengeID != c.ID {
-		t.Fatalf("challenge_id: got %s, want %s", rec.ChallengeID, c.ID)
-	}
-	if rec.IDProof != nil {
-		t.Fatal("expected nil proof")
-	}
-}
-
-func TestVerifyAndRecordWithProof(t *testing.T) {
-	s := newTestStore(t)
-	c, _ := s.CreateChallenge(context.Background())
-
-	proof := "deadbeef"
-	err := s.VerifyAndRecord(context.Background(), "nullifier-proof", c.ID, &proof, "tbs")
-	if err != nil {
-		t.Fatalf("verify: %v", err)
-	}
-
-	rec, _ := s.GetVerification(context.Background(), "nullifier-proof")
-	if rec.IDProof == nil || *rec.IDProof != "deadbeef" {
-		t.Fatalf("proof: got %v, want 'deadbeef'", rec.IDProof)
 	}
 }
 
@@ -175,12 +138,11 @@ func TestVerifyAndRecordDuplicateNullifier(t *testing.T) {
 	c1, _ := s.CreateChallenge(context.Background())
 	c2, _ := s.CreateChallenge(context.Background())
 
-	err := s.VerifyAndRecord(context.Background(), "dupe", c1.ID, nil, "tbs")
-	if err != nil {
+	if err := s.VerifyAndRecord(context.Background(), "dupe", c1.ID, nil, "link_rs2048"); err != nil {
 		t.Fatalf("first verify: %v", err)
 	}
 
-	err = s.VerifyAndRecord(context.Background(), "dupe", c2.ID, nil, "tbs")
+	err := s.VerifyAndRecord(context.Background(), "dupe", c2.ID, nil, "link_rs2048")
 	if !errors.Is(err, ErrDuplicateNullifier) {
 		t.Fatalf("expected ErrDuplicateNullifier, got: %v", err)
 	}
@@ -188,7 +150,7 @@ func TestVerifyAndRecordDuplicateNullifier(t *testing.T) {
 
 func TestVerifyAndRecordChallengeNotFound(t *testing.T) {
 	s := newTestStore(t)
-	err := s.VerifyAndRecord(context.Background(), "n", "nonexistent", nil, "tbs")
+	err := s.VerifyAndRecord(context.Background(), "n", "nonexistent", nil, "link_rs2048")
 	if !errors.Is(err, ErrChallengeNotFound) {
 		t.Fatalf("expected ErrChallengeNotFound, got: %v", err)
 	}
@@ -201,7 +163,7 @@ func TestVerifyAndRecordChallengeExpired(t *testing.T) {
 	c, _ := s.CreateChallenge(context.Background())
 	time.Sleep(5 * time.Millisecond)
 
-	err := s.VerifyAndRecord(context.Background(), "n", c.ID, nil, "tbs")
+	err := s.VerifyAndRecord(context.Background(), "n", c.ID, nil, "link_rs2048")
 	if !errors.Is(err, ErrChallengeExpired) {
 		t.Fatalf("expected ErrChallengeExpired, got: %v", err)
 	}
@@ -212,10 +174,10 @@ func TestVerifyAndRecordChallengeConsumed(t *testing.T) {
 	c, _ := s.CreateChallenge(context.Background())
 
 	// First verify consumes the challenge
-	_ = s.VerifyAndRecord(context.Background(), "first", c.ID, nil, "tbs")
+	_ = s.VerifyAndRecord(context.Background(), "first", c.ID, nil, "link_rs2048")
 
 	// Second attempt with different nullifier should fail with consumed
-	err := s.VerifyAndRecord(context.Background(), "second", c.ID, nil, "tbs")
+	err := s.VerifyAndRecord(context.Background(), "second", c.ID, nil, "link_rs2048")
 	if !errors.Is(err, ErrChallengeConsumed) {
 		t.Fatalf("expected ErrChallengeConsumed, got: %v", err)
 	}
@@ -226,49 +188,20 @@ func TestVerifyAndRecordTransactionRollback(t *testing.T) {
 	c, _ := s.CreateChallenge(context.Background())
 
 	// First verify succeeds
-	_ = s.VerifyAndRecord(context.Background(), "exists", c.ID, nil, "tbs")
+	_ = s.VerifyAndRecord(context.Background(), "exists", c.ID, nil, "link_rs2048")
 
 	// Create another challenge
 	c2, _ := s.CreateChallenge(context.Background())
 
 	// Try to verify with duplicate nullifier on new challenge
-	err := s.VerifyAndRecord(context.Background(), "exists", c2.ID, nil, "tbs")
+	err := s.VerifyAndRecord(context.Background(), "exists", c2.ID, nil, "link_rs2048")
 	if !errors.Is(err, ErrDuplicateNullifier) {
 		t.Fatalf("expected ErrDuplicateNullifier, got: %v", err)
 	}
 
-	// c2 should NOT be consumed (TX rolled back)
-	got, _ := s.GetChallenge(context.Background(), c2.ID)
-	// Verify challenge is not consumed by checking we can still use it
-	err = s.VerifyAndRecord(context.Background(), "new-nullifier", c2.ID, nil, "tbs")
-	if err != nil {
-		t.Fatalf("c2 should still be usable after rollback, got: %v (challenge: %+v)", err, got)
-	}
-}
-
-func TestGetVerificationNotFound(t *testing.T) {
-	s := newTestStore(t)
-	rec, err := s.GetVerification(context.Background(), "nonexistent")
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if rec != nil {
-		t.Fatal("expected nil")
-	}
-}
-
-func TestGetVerificationTimeFormat(t *testing.T) {
-	s := newTestStore(t)
-	c, _ := s.CreateChallenge(context.Background())
-	_ = s.VerifyAndRecord(context.Background(), "time-test", c.ID, nil, "tbs")
-
-	rec, _ := s.GetVerification(context.Background(), "time-test")
-	if rec.VerifiedAt.IsZero() {
-		t.Fatal("VerifiedAt is zero")
-	}
-	// Should be within the last minute
-	if time.Since(rec.VerifiedAt) > time.Minute {
-		t.Fatalf("VerifiedAt too old: %v", rec.VerifiedAt)
+	// c2 should NOT be consumed (TX rolled back) — a fresh nullifier must still succeed.
+	if err := s.VerifyAndRecord(context.Background(), "new-nullifier", c2.ID, nil, "link_rs2048"); err != nil {
+		t.Fatalf("c2 should still be usable after rollback, got: %v", err)
 	}
 }
 
@@ -286,21 +219,20 @@ func TestConcurrentVerifySameNullifier(t *testing.T) {
 				results <- err
 				return
 			}
-			results <- s.VerifyAndRecord(context.Background(), "same-nullifier", c.ID, nil, "tbs")
+			results <- s.VerifyAndRecord(context.Background(), "same-nullifier", c.ID, nil, "link_rs2048")
 		}()
 	}
 	wg.Wait()
 	close(results)
 
-	var successes, dupes int
+	var successes int
 	for err := range results {
-		if err == nil {
+		switch {
+		case err == nil:
 			successes++
-		} else if errors.Is(err, ErrDuplicateNullifier) {
-			dupes++
-		} else if errors.Is(err, ErrChallengeConsumed) {
-			// Also acceptable — consumed check fires before uniqueness in some orderings
-		} else {
+		case errors.Is(err, ErrDuplicateNullifier), errors.Is(err, ErrChallengeConsumed):
+			// Both are valid losers in the race.
+		default:
 			t.Fatalf("unexpected error: %v", err)
 		}
 	}
@@ -311,13 +243,9 @@ func TestConcurrentVerifySameNullifier(t *testing.T) {
 
 func TestForeignKeyEnforcement(t *testing.T) {
 	s := newTestStore(t)
-	// Try to insert a verification with a non-existent challenge_id
-	// This should fail if FK enforcement is on
-	err := s.VerifyAndRecord(context.Background(), "fk-test", "no-such-challenge", nil, "tbs")
-	if err == nil {
-		t.Fatal("expected error for FK violation")
-	}
-	// Should be ErrChallengeNotFound (our check catches it before FK does)
+	// Non-existent challenge_id should error out. Our challenge-exists check
+	// fires before the FK violation, so we expect ErrChallengeNotFound.
+	err := s.VerifyAndRecord(context.Background(), "fk-test", "no-such-challenge", nil, "link_rs2048")
 	if !errors.Is(err, ErrChallengeNotFound) {
 		t.Fatalf("expected ErrChallengeNotFound, got: %v", err)
 	}

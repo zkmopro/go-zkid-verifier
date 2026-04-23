@@ -19,6 +19,26 @@ const (
 	ProofTypeRS4096 ProofType = "rs4096" // cert_chain_rs4096 + device_sig_rs2048
 )
 
+// ParseProofType validates cert_chain_type. An empty string defaults to RS2048.
+func ParseProofType(s string) (ProofType, error) {
+	switch s {
+	case "", string(ProofTypeRS2048):
+		return ProofTypeRS2048, nil
+	case string(ProofTypeRS4096):
+		return ProofTypeRS4096, nil
+	default:
+		return "", fmt.Errorf("invalid cert_chain_type: must be %q or %q", ProofTypeRS2048, ProofTypeRS4096)
+	}
+}
+
+// StoreKey is the string recorded in the verifications.proof_type column.
+func (pt ProofType) StoreKey() string {
+	if pt == ProofTypeRS4096 {
+		return "link_rs4096"
+	}
+	return "link_rs2048"
+}
+
 // maxConcurrent limits parallel ZK verifications to prevent temp dir / CPU exhaustion.
 var verifySem = make(chan struct{}, 10)
 

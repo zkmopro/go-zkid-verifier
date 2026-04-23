@@ -13,12 +13,6 @@ service ZkIDVerifier {
 
   // LinkVerify verifies cert-chain and device-sig proofs with pk_commit linkage.
   rpc LinkVerify(LinkVerifyRequest) returns (LinkVerifyResponse);
-
-  // VerifyTBS verifies a TBS hash against a challenge (legacy endpoint).
-  rpc VerifyTBS(VerifyTBSRequest) returns (VerifyTBSResponse);
-
-  // GetVerificationStatus retrieves verification status by nullifier.
-  rpc GetVerificationStatus(GetVerificationStatusRequest) returns (GetVerificationStatusResponse);
 }
 
 message CreateChallengeRequest {}
@@ -72,29 +66,4 @@ message SmtRootOutcome {
   string trust_source = 5;
   // RFC3339 timestamp of the last successful refresh.
   string trusted_at = 6;
-}
-
-message VerifyTBSRequest {
-  string challenge_id = 1;
-  repeated int32 tbs_hash_bits = 2;
-  string nullifier = 3;
-}
-
-message VerifyTBSResponse {
-  bool verified = 1;
-  string nullifier = 2;
-  bool id_verified = 3;
-  bool persisted = 4;
-}
-
-message GetVerificationStatusRequest {
-  string nullifier = 1;
-}
-
-message GetVerificationStatusResponse {
-  string nullifier = 1;
-  bool id_verified = 2;
-  string proof_type = 3;
-  string verified_at = 4;
-  string challenge_id = 5;
 }

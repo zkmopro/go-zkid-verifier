@@ -230,35 +230,6 @@ func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challengeI
 	return tx.Commit()
 }
 
-func (s *SQLiteStore) GetVerification(ctx context.Context, nullifier string) (*VerificationRecord, error) {
-	row := s.db.QueryRowContext(ctx,
-		`SELECT nullifier, id_verified, id_proof, proof_type, verified_at, challenge_id
-		 FROM verifications WHERE nullifier = ?`, nullifier,
-	)
-
-	var rec VerificationRecord
-	var idProof sql.NullString
-	var verifiedAtStr string
-	if err := row.Scan(&rec.Nullifier, &rec.IDVerified, &idProof, &rec.ProofType, &verifiedAtStr, &rec.ChallengeID); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("scan verification: %w", err)
-	}
-
-	if idProof.Valid {
-		rec.IDProof = &idProof.String
-	}
-
-	verifiedAt, parseErr := parseTime(verifiedAtStr)
-	if parseErr != nil {
-		return nil, fmt.Errorf("parse verified_at: %w", parseErr)
-	}
-	rec.VerifiedAt = verifiedAt
-
-	return &rec, nil
-}
-
 // parseTime parses a time string from SQLite, always returning UTC.
 // Handles both RFC3339 and SQLite's default datetime format.
 func parseTime(s string) (time.Time, error) {
