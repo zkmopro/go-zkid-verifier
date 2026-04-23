@@ -1,95 +1,65 @@
 # go-zkid-verifier
 
-A Go server that issues challenges and verifies zero-knowledge proofs of identity from a CDC card, over REST and gRPC. Proofs are produced by the [zkID](https://github.com/zkmopro/zkID) circuits on top of [Spartan2](https://github.com/therealyingtong/Spartan2.git) with Hyrax commitments.
+A Go server that issues challenges and verifies zero-knowledge proofs of Taiwan CDC card identity, over REST and gRPC. Proofs come from the [zkID](https://github.com/zkmopro/zkID) circuits on top of [Spartan2](https://github.com/therealyingtong/Spartan2.git) with Hyrax commitments.
 
-Every verification checks two ZK proofs in one call — a **cert-chain** proof (RSA-2048 or RSA-4096) and a **device-signature** proof (RSA-2048) — and enforces that (a) both carry the same `pk_commit` and (b) the cert-chain proof's `smt_root` matches the current revocation-list root published by [moica-revocation-smt](https://github.com/moven0831/moica-revocation-smt) (Arbitrum Sepolia onchain, GitHub release as fallback).
+Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plus one device-signature proof (RSA-2048) and enforces three things server-side:
+
+1. The FFI accepts both proofs and their `pk_commit` linkage holds.
+2. The `smt_root` public input matches the current revocation-list root for the issuer ([moica-revocation-smt](https://github.com/moven0831/moica-revocation-smt)).
+3. The `issuer_rsa_modulus` public input matches the RSA modulus of the published MOICA-G2 (RS2048) or MOICA-G3 (RS4096) certificate — i.e. the proof was actually signed by MOICA, not an impostor.
 
 ## Quickstart
 
 ```bash
-# Clone this repo and zkID as siblings
 git clone https://github.com/zkmopro/go-zkid-verifier.git
 git clone https://github.com/zkmopro/zkID.git
 cd go-zkid-verifier
 
-# Build (Rust + Go) and run. Verifying keys auto-download on first boot.
-make serve
+make serve            # builds Rust + Go, downloads verifying keys, runs server
 ```
 
-Server boots on `:8080` (HTTP) and `:9090` (gRPC). Hit it:
+- HTTP on `:8080`, gRPC on `:9090`
+- SQLite at `./zkid.db`
+- SMT root fetched from Arbitrum Sepolia, falling back to a pinned GitHub release
+- MOICA issuer certs shipped embedded; refreshed in background from `moica.nat.gov.tw`
+
+Test a round-trip:
 
 ```bash
-curl -X POST http://localhost:8080/challenge | jq .
+# Issue a challenge
+curl -s -X POST http://localhost:8080/challenge | jq .
+
+# Submit proofs (device-signs the challenge, then produces both ZK proofs)
+curl -s -X POST http://localhost:8080/link-verify \
+  -H "Content-Type: application/json" \
+  -d '{"cert_chain_type":"rs2048","cert_chain_proof":"<base64>","device_sig_proof":"<base64>"}' | jq .
+
+# Inspect trust-anchor caches
+curl -s http://localhost:8080/smt-root/status    | jq .
+curl -s http://localhost:8080/issuer-cert/status | jq .
 ```
 
-## Prerequisites
+### Prerequisites
 
-- Go 1.25+
-- Rust (stable)
+- Go 1.25+ and Rust (stable)
 - macOS or Linux
   - macOS: `xcode-select --install`
   - Linux: `sudo apt-get install -y g++ libstdc++-12-dev nasm libgmp-dev`
-- `protoc` — only if you regenerate `.pb.go` via `make proto`
-
-## How it works
-
-```
-Go server (cmd/server)
-├── HTTP (:8080) ── /challenge, /link-verify, /smt-root/status
-├── gRPC (:9090) ── ZkIDVerifier service (same surface as HTTP)
-├── SQLite       ── challenges + verification records (pure-Go driver)
-├── smtroot/     ── trusted revocation-list root cache
-└── verifier/    ── CGO → lib/<target>/libzk_verifier.a (Rust)
-                          └── ecdsa-spartan2 ZK circuit
-                                └── lib/<target>/libwitnesscalc_rs256.{dylib,so}
-```
-
-The Rust static lib is selected by CGO per platform:
-
-| Platform | Library directory |
-|---|---|
-| macOS Apple Silicon | `lib/aarch64-apple-darwin/` |
-| Linux x86_64 | `lib/x86_64-unknown-linux-gnu/` |
-
-### Revocation enforcement
-
-Each cert-chain proof carries an `smt_root` public input — the revocation SMT root the prover used to prove non-inclusion. The circuit proves consistency with *some* root, not that it's the current one; without a server-side check, a revoked certificate could keep verifying forever by reusing a pre-revocation root.
-
-The server fetches the trusted root per issuer (RS2048 → MOICA-G2, RS4096 → MOICA-G3) and rejects any mismatched proof. Sources, in order: `SMTRootStorage.getRoot(bytes32)` on Arbitrum Sepolia (primary), the `snapshot-latest` GitHub release body (fallback). Both refresh on `SMT_ROOT_REFRESH_INTERVAL` (default 10 min); the last known roots are retained on a failed refresh.
-
-**Startup is fail-closed.** If neither source responds at boot, the server refuses to start. Set `SMT_ROOT_ENFORCE=disabled` to skip the check entirely — local dev only.
-
-## Configuration
-
-All configuration is via environment variables:
-
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `8080` | HTTP listen port |
-| `GRPC_PORT` | `9090` | gRPC listen port |
-| `DB_PATH` | `./zkid.db` | SQLite database path |
-| `KEYS_DIR` | `./keys` | Directory holding verifying keys |
-| `CORS_ORIGIN` | `*` | `Access-Control-Allow-Origin` |
-| `SMT_ROOT_ENFORCE` | `strict` | `strict` = hard-fail on mismatch; `disabled` = skip the SMT root check (dev only) |
-| `SMT_ROOT_RPC_URL` | `https://sepolia-rollup.arbitrum.io/rpc` | Arbitrum Sepolia JSON-RPC |
-| `SMT_ROOT_CONTRACT` | `0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA` | `SMTRootStorage` address |
-| `SMT_ROOT_GITHUB_REPO` | `moven0831/moica-revocation-smt` | Fallback repo |
-| `SMT_ROOT_GITHUB_TAG` | `snapshot-latest` | Fallback release tag |
-| `SMT_ROOT_REFRESH_INTERVAL` | `10m` | Background refresh cadence |
-| `SMT_ROOT_FETCH_TIMEOUT` | `5s` | Per-source fetch timeout |
+- `protoc` only if you regenerate `.pb.go` via `make proto`
 
 ## HTTP API
 
-| Method | Path | Description |
+| Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/challenge` | Issue a 16-byte challenge. Returns `{challenge_id, challenge_bytes, expires_at}`. TTL 5 min. |
-| `GET` | `/challenge/{id}` | Fetch a challenge by ID. `404` if missing, `400` if expired. |
-| `POST` | `/link-verify` | Verify a cert-chain + device-sig proof pair, check `pk_commit` linkage and `smt_root`. Body limit 2 MB. |
-| `GET` | `/smt-root/status` | Trusted-root cache snapshot (source, per-issuer roots, refresh stats). |
+| `POST` | `/challenge` | Issue a 16-byte challenge. Returns `{challenge_id, challenge_bytes, expires_at}`, TTL 5 min. |
+| `GET`  | `/challenge/{id}` | Fetch a challenge by ID. |
+| `POST` | `/link-verify` | Verify a cert-chain + device-sig proof pair. Body limit 2 MB. |
+| `GET`  | `/smt-root/status` | Trusted revocation-root cache snapshot. |
+| `GET`  | `/issuer-cert/status` | Trusted MOICA issuer-cert cache snapshot. |
 
-### `/link-verify`
+### `POST /link-verify`
 
-Request — the server extracts both the challenge and the nullifier from the proof's public signals, so they are **not** part of the request body:
+Request — the challenge and nullifier are derived from the proof's public signals and are **not** in the request body:
 
 ```json
 {
@@ -99,9 +69,9 @@ Request — the server extracts both the challenge and the nullifier from the pr
 }
 ```
 
-`cert_chain_type` is `"rs2048"` (default) or `"rs4096"`. Both proofs are binary, base64-encoded in JSON.
+`cert_chain_type` is `"rs2048"` (default) or `"rs4096"`.
 
-Success response (HTTP 200):
+Success body (200):
 
 ```json
 {
@@ -117,109 +87,112 @@ Success response (HTTP 200):
     "issuer_rsa_modulus": ["...", "..."],
     "smt_root": "0x..."
   },
-  "smt_root": {
-    "issuer": "g2",
-    "match": true,
-    "expected": "0x9c70…",
-    "observed": "0x9c70…",
-    "trust_source": "onchain",
-    "trusted_at": "2026-04-22T05:10:00Z"
-  }
+  "smt_root":       { "issuer": "g2", "match": true, "expected": "0x…", "observed": "0x…", "trust_source": "onchain",  "trusted_at": "…" },
+  "issuer_modulus": { "issuer": "g2", "match": true, "expected_sha256": "0xc4c4…", "trust_source": "embedded", "trusted_at": "…" }
 }
 ```
 
-On SMT root mismatch (HTTP 409 Conflict — the proof's root disagrees with the current trusted root, likely because the client is stale):
+Both `smt_root` and `issuer_modulus` blocks are present whenever their respective checks ran. Only the first failing check populates `reason`; the other block still reports its outcome.
 
-```json
-{
-  "verified": false,
-  "reason": "smt_root_mismatch",
-  "smt_root": {
-    "issuer": "g2",
-    "match": false,
-    "expected": "0x9c70…",
-    "observed": "0xabcd…",
-    "trust_source": "onchain",
-    "trusted_at": "2026-04-22T05:10:00Z"
-  }
-}
-```
+### `/link-verify` response codes
 
-A proof-invalid failure (cert-chain or device-sig rejected by the circuit) returns HTTP 200 with `verified: false` and `reason: "proof_invalid"` — the pipeline ran to completion, the proof just didn't pass. If the server can't fetch a trusted root for the issuer (startup incomplete or all sources failing), `/link-verify` returns HTTP 503 so the client retries rather than interpreting a transient outage as a bad proof.
-
-Nothing is written on a non-success outcome and the challenge is **not** consumed — the client can retry once the underlying issue is resolved. A successful verify atomically records `{nullifier, proof_type, challenge_id, verified_at}` and consumes the challenge. Reusing a challenge returns `410 Gone`; reusing a nullifier returns `409 Conflict`.
-
-### Example
-
-```bash
-# 1. Get a challenge
-curl -s -X POST http://localhost:8080/challenge | jq .
-
-# 2. Client signs the challenge on a CDC card and generates both ZK proofs.
-
-# 3. Submit proofs
-curl -s -X POST http://localhost:8080/link-verify \
-  -H "Content-Type: application/json" \
-  -d '{
-    "cert_chain_type": "rs2048",
-    "cert_chain_proof": "<base64>",
-    "device_sig_proof": "<base64>"
-  }' | jq .
-```
+| Code | Reason / meaning | Notes |
+|---|---|---|
+| `200` | `verified=true` — proof accepted, record persisted, challenge consumed. |  |
+| `200` | `verified=false, reason="proof_invalid"` — FFI rejected the proof. | Record **not** persisted, challenge **not** consumed. |
+| `400` | Request body malformed or missing `cert_chain_proof` / `device_sig_proof` / valid `cert_chain_type`. |  |
+| `404` | Challenge not found. | Proof's challenge doesn't match any live challenge, or it already expired. |
+| `409` | `reason="smt_root_mismatch"` | Prover's `smt_root` disagrees with the trusted root — stale client. |
+| `409` | `reason="issuer_modulus_mismatch"` | Prover's issuer modulus doesn't match MOICA-G2/G3 — wrong-issuer proof. |
+| `409` | Duplicate nullifier. | Same `subject_dn_hash` already verified. Response echoes `nullifier`. |
+| `410` | Challenge already consumed. |  |
+| `503` | Trust-anchor provider unavailable. | SMT root or issuer cert not cached — transient; retry. |
+| `500` | FFI crash or other infrastructure failure. |  |
 
 ## gRPC API
 
-`proto/zkid/v1/zkid.proto` defines the `ZkIDVerifier` service with three RPCs:
+`proto/zkid/v1/zkid.proto` defines `ZkIDVerifier` with the same verify semantics as HTTP (including `smt_root_mismatch` and `issuer_modulus_mismatch` fail modes). Messages up to 2 MB. Regenerate with `make proto`.
 
-- `CreateChallenge` / `GetChallenge` — same semantics as their HTTP counterparts.
-- `LinkVerify` — same enforcement as HTTP (`pk_commit` linkage + `smt_root` check), including the `"smt_root_mismatch"` fail mode. The server accepts messages up to 2 MB.
+## Configuration
 
-Regenerate `.pb.go` after editing the proto:
+All via environment variables.
 
-```bash
-make proto
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `8080` | HTTP listen port |
+| `GRPC_PORT` | `9090` | gRPC listen port |
+| `DB_PATH` | `./zkid.db` | SQLite database path |
+| `KEYS_DIR` | `./keys` | Verifying-key directory (auto-downloaded) |
+| `CORS_ORIGIN` | `*` | `Access-Control-Allow-Origin` |
+| `SMT_ROOT_ENFORCE` | `strict` | `strict` = hard-fail on mismatch; `disabled` = skip (dev only) |
+| `SMT_ROOT_RPC_URL` | `https://sepolia-rollup.arbitrum.io/rpc` | Arbitrum Sepolia JSON-RPC |
+| `SMT_ROOT_CONTRACT` | `0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA` | `SMTRootStorage` address |
+| `SMT_ROOT_GITHUB_REPO` | `moven0831/moica-revocation-smt` | Fallback repo |
+| `SMT_ROOT_GITHUB_TAG` | `snapshot-latest` | Fallback release tag |
+| `SMT_ROOT_REFRESH_INTERVAL` | `10m` | SMT refresh cadence |
+| `SMT_ROOT_FETCH_TIMEOUT` | `5s` | Per-source fetch timeout |
+| `ISSUER_CERT_ENFORCE` | `strict` | `strict` = hard-fail on modulus mismatch; `disabled` = skip (dev only) |
+| `ISSUER_CERT_G2_URL` | `https://moica.nat.gov.tw/repository/Certs/MOICA2.cer` | MOICA-G2 source (override for tests) |
+| `ISSUER_CERT_G3_URL` | `https://moica.nat.gov.tw/repository/Certs/MOICA-G3.cer` | MOICA-G3 source (override for tests) |
+| `ISSUER_CERT_REFRESH_INTERVAL` | `24h` | Issuer-cert refresh cadence |
+| `ISSUER_CERT_FETCH_TIMEOUT` | `10s` | Per-source fetch timeout |
+
+### Trust anchors
+
+Both `smt_root` and `issuer_modulus` use the same pattern: pinned trust anchors, background refresh, stale-on-error.
+
+**SMT revocation root.** Primary: `SMTRootStorage.getRoot(bytes32)` on Arbitrum Sepolia. Fallback: `snapshot-latest` GitHub release body. Startup is fail-closed — if neither source responds, the server refuses to boot. Set `SMT_ROOT_ENFORCE=disabled` for local dev.
+
+**Issuer certificates.** MOICA-G2, MOICA-G3, and both of their GRCA parents ship **embedded** in the binary, with pinned SHA-256 fingerprints. A background fetch from `moica.nat.gov.tw` is *best-effort*: fetched certs must match the pinned fingerprint AND chain-validate to embedded GRCA before they replace the cached record. Fingerprint drift keeps the embedded copy in place and increments `consecutive_fail`. Rotating a cert requires a code release (new embedded bytes + new pinned fingerprint).
+
+## Architecture
+
+```
+cmd/server ── HTTP (:8080)  /challenge  /link-verify  /smt-root/status  /issuer-cert/status
+           ── gRPC (:9090)  ZkIDVerifier
+           ── SQLite (challenges + verification records)
+           ── smtroot/     revocation SMT root cache (onchain + GitHub)
+           ── issuercert/  MOICA cert cache (embedded + HTTPS, GRCA-chained)
+           └── verifier/   CGO → lib/<target>/libzk_verifier.a (Rust + ecdsa-spartan2)
+```
+
+The Rust static lib is selected by CGO per platform:
+
+| Platform | Library directory |
+|---|---|
+| macOS Apple Silicon | `lib/aarch64-apple-darwin/` |
+| Linux x86_64 | `lib/x86_64-unknown-linux-gnu/` |
+
+### Package layout
+
+```
+cmd/server          REST + gRPC server entrypoint
+cmd/verifier        Link-verify CLI (FFI smoke test)
+httpapi/            HTTP transport (router, handlers, DTOs, error mapping)
+grpc/               gRPC adapter over linkverify.Service
+linkverify/         Orchestrator: FFI → parse → SMT check → issuer-modulus check → record
+verifier/           CGO FFI + public-signals parser
+smtroot/            Trusted revocation-root cache (onchain + GitHub fallback)
+issuercert/         Trusted MOICA issuer-cert cache (embedded + HTTPS, GRCA-chained)
+store/              SQLite (pure-Go modernc.org/sqlite)
+keymanager/         Verifying-key auto-download
+proto/zkid/v1/      zkid.proto + generated *.pb.go
+rust/               Cargo.toml, Cross.toml, src/lib.rs (FFI shim)
+lib/                Native libs per target (gitignored)
+tests/artifacts/    Proof fixtures for RS2048 + RS4096
 ```
 
 ## Using the Go packages
 
+`linkverify.Service` is the transport-agnostic orchestrator:
+
 ```go
-import (
-    "context"
-    "time"
-
-    "github.com/zkmopro/go-zkid-verifier/linkverify"
-    "github.com/zkmopro/go-zkid-verifier/smtroot"
-    "github.com/zkmopro/go-zkid-verifier/verifier"
-)
-
-// Production path: build an smtroot.Provider so the cert-chain proof's
-// smt_root is enforced against the current revocation root.
-provider := smtroot.NewProvider(smtroot.Config{
-    Primary:  smtroot.NewOnchainSource("", "", 5*time.Second),
-    Fallback: smtroot.NewGitHubReleaseSource("", "", 5*time.Second),
-})
-if err := provider.FetchNow(context.Background(), "startup"); err != nil {
-    log.Fatalf("startup fetch: %v", err)
-}
-provider.Start(context.Background())
-defer provider.Stop()
-
 v := &linkverify.Verifier{
-    KeysDir: keysDir,
-    SmtRoot: provider,
-    Logger:  smtroot.DefaultLogger{},
+    KeysDir:    keysDir,
+    SmtRoot:    smtProvider,    // nil disables SMT check (dev/tests only)
+    IssuerCert: issuerProvider, // nil disables issuer-modulus check (dev/tests only)
+    Logger:     smtroot.DefaultLogger{},
 }
-result, err := v.Verify(linkverify.Request{
-    CertChainProof: ccBytes,
-    DeviceSigProof: dsBytes,
-    ProofType:      linkverify.ProofTypeRS2048,
-})
-// result.Verified, result.Parsed, result.SmtRoot.Match, result.Reason
-```
-
-`linkverify.Service` is the transport-agnostic orchestrator that both HTTP and gRPC call — it runs verify → challenge lookup → expiry check → record atomically and maps the two transport semantics:
-
-```go
 service := linkverify.NewService(v, sqliteStore)
 
 // HTTP path — challenge and nullifier derived from the proof:
@@ -229,57 +202,31 @@ res, err := service.VerifyAndRecordByProof(ctx, linkverify.Request{...})
 res, err := service.VerifyAndRecordByID(ctx, challengeID, nullifier, linkverify.Request{...})
 ```
 
-Store sentinels (`ErrChallengeNotFound`, `ErrChallengeExpired`, `ErrChallengeConsumed`, `ErrDuplicateNullifier`) and `linkverify.ErrSmtRootUnavailable` bubble unwrapped so each transport picks its own status code.
-
-For tests and local dev with historical fixtures, leave `SmtRoot: nil` — SMT root enforcement is skipped. The low-level `verifier.LinkVerify(baseDir, verifier.CertChainRS2048)` is also available if you want to manage the `keys/` directory yourself.
+Sentinel errors bubble unwrapped so each transport picks its own status code: `store.ErrChallengeNotFound`, `ErrChallengeExpired`, `ErrChallengeConsumed`, `ErrDuplicateNullifier`, `linkverify.ErrSmtRootUnavailable`, `linkverify.ErrIssuerCertUnavailable`.
 
 `linkverify.Verify` caps concurrent ZK verifications at 10 (semaphore) and stages each proof in a temp dir with symlinked verifying keys.
-
-## Verifier CLI
-
-`cmd/verifier` runs link-verify against proof files on disk — handy for testing the FFI without a server:
-
-```bash
-make build-verifier
-
-# macOS, defaults to rs2048
-DYLD_LIBRARY_PATH=./lib/aarch64-apple-darwin ./zkid-verifier
-
-# Linux
-LD_LIBRARY_PATH=./lib/x86_64-unknown-linux-gnu ./zkid-verifier
-
-# rs4096 variant
-./zkid-verifier --cert-chain-4096
-```
-
-Reads from `$ZK_BASE_DIR/keys/` (defaults to `.`): `cert_chain_rs{2048,4096}_proof.bin`, `device_sig_rs2048_proof.bin`, and the matching `*_verifying.key`.
 
 ## Development
 
 | Target | Description |
 |---|---|
-| `make build` | Build the server and the verifier CLI |
-| `make build-server` | Build `zkid-server` |
-| `make build-verifier` | Build `zkid-verifier` |
-| `make serve` | Build and run the server |
-| `make verify` | Build and run the verifier CLI against `./keys/` |
-| `make test` | All tests (challenge + verifier + linkverify) |
-| `make test-challenge` | Store + challenge package tests |
-| `make test-verifier` | Verifier FFI tests (needs keys + proofs under `$BASE_DIR/keys/`) |
-| `make test-linkverify` | Link-verify orchestration tests |
-| `make download-keys` | Download verifying keys from the zkID GitHub release |
-| `make proto` | Regenerate gRPC / protobuf Go files |
+| `make build` | Server + verifier CLI |
+| `make serve` | Build + run the server |
+| `make verify` | Run the verifier CLI against `./keys/` |
+| `make test` | Full test suite |
+| `make test-verifier` | FFI fixture tests (requires `./keys/`) |
+| `make test-linkverify` | Orchestration tests |
+| `make download-keys` | Fetch verifying keys from the zkID GitHub release |
+| `make proto` | Regenerate `.pb.go` |
 | `make clean` | Remove build artifacts |
 
-The Makefile auto-detects OS/arch and sets `RUST_TARGET` + `DYLD_LIBRARY_PATH`/`LD_LIBRARY_PATH` accordingly.
+Integration tests gated by `//go:build integration` (currently `./issuercert/...`) run with:
 
-### CI
-
-`.github/workflows/ci.yml` has two jobs on every push / PR to `main`: a pure-Go `challenge-server` job that tests `./store/` with `CGO_ENABLED=0`, and a `verifier` matrix (macOS + Linux) that clones zkID at a pinned commit, builds the Rust lib + Go binaries, downloads verifying keys, and runs the full test suite including the RS2048 and RS4096 FFI fixture tests from `tests/artifacts/`. The `smtroot/` tests and `linkverify/verifier_test.go` use an injected static `smtroot.Provider` — they never reach a live RPC or GitHub endpoint, keeping CI deterministic.
+```bash
+go test -tags integration ./issuercert/...
+```
 
 ### Cross-compile for Linux from macOS
-
-Requires Docker:
 
 ```bash
 cargo install cross --git https://github.com/cross-rs/cross
@@ -293,50 +240,8 @@ cp $(find rust/target/x86_64-unknown-linux-gnu/release/build -name "libwitnessca
    lib/x86_64-unknown-linux-gnu/
 ```
 
-`rust/Cross.toml` pre-installs `nasm` and `libgmp-dev` in the container.
+`rust/Cross.toml` pre-installs `nasm` and `libgmp-dev`.
 
-## Project layout
+### CI
 
-`httpapi/` owns all HTTP transport; `grpc/` and `httpapi/` both call into `linkverify.Service` for the shared verify → lookup → record flow.
-
-```
-.
-├── cmd/
-│   ├── server/main.go          # REST + gRPC server (wires Service + Router)
-│   └── verifier/main.go        # Link-verify CLI
-├── challenge/challenge.go      # Challenge-domain constants (DefaultTTL)
-├── httpapi/                    # HTTP transport
-│   ├── router.go               # NewRouter(service, store, provider) http.Handler
-│   ├── challenge.go            # /challenge CRUD handlers
-│   ├── linkverify.go           # /link-verify handler (409 on smt_root_mismatch, 503 on provider unavailable)
-│   ├── smtroot.go              # /smt-root/status handler
-│   ├── dto.go                  # LinkVerifyRequest + Verify{Success,Fail}Response
-│   └── errors.go               # jsonError, writeStoreError
-├── grpc/server.go              # Thin gRPC adapter over linkverify.Service
-├── linkverify/                 # High-level link-verify orchestrator
-│   ├── linkverify.go           # FFI wrapper, bounded concurrency, ParseProofType
-│   ├── verifier.go             # Verifier struct: FFI + parse + smt_root check
-│   ├── service.go              # Service: verify → lookup → record (HTTP + gRPC share this)
-│   └── errors.go               # ErrSmtRootUnavailable + Reason constants
-├── smtroot/                    # Trusted SMT root cache (onchain + GitHub release)
-│   ├── smtroot.go              # Provider, Status, IssuerID, Root
-│   ├── onchain.go              # Arbitrum Sepolia JSON-RPC eth_call
-│   ├── github.go               # GitHub Releases body parser (fallback)
-│   ├── refresh.go              # Background refresher + structured logs
-│   └── log.go                  # Logger interface + DefaultLogger
-├── verifier/                   # CGO FFI bindings
-│   ├── verifier.go
-│   └── public_inputs.go        # Parse cert_chain + device_sig public signals
-├── store/                      # Challenge + verification persistence (pure Go)
-│   ├── store.go                # Store interface + sentinel errors
-│   └── sqlite.go               # modernc.org/sqlite implementation
-├── keymanager/keymanager.go    # Auto-download verifying keys
-├── proto/zkid/v1/              # zkid.proto + generated *.pb.go files
-├── rust/                       # Cargo.toml (path dep on ../../zkID), Cross.toml, src/lib.rs
-├── lib/                        # Native libraries per target (gitignored)
-├── keys/                       # Verifying keys (gitignored, auto-downloaded)
-├── tests/artifacts/            # Proof fixtures for RS2048 + RS4096
-├── scripts/download_keys.sh
-├── Makefile
-└── .github/workflows/ci.yml
-```
+`.github/workflows/ci.yml` runs a pure-Go `challenge-server` job (CGO off, `./store/`) and a `verifier` matrix (macOS + Linux) that clones zkID at a pinned commit, builds the Rust lib, downloads verifying keys, and runs the full test suite including RS2048 / RS4096 FFI fixtures. Trust-anchor packages use injected static providers so CI never hits live endpoints.
