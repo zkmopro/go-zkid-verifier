@@ -481,254 +481,6 @@ func (x *SmtRootOutcome) GetTrustedAt() string {
 	return ""
 }
 
-type VerifyTBSRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ChallengeId   string                 `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
-	TbsHashBits   []int32                `protobuf:"varint,2,rep,packed,name=tbs_hash_bits,json=tbsHashBits,proto3" json:"tbs_hash_bits,omitempty"`
-	Nullifier     string                 `protobuf:"bytes,3,opt,name=nullifier,proto3" json:"nullifier,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *VerifyTBSRequest) Reset() {
-	*x = VerifyTBSRequest{}
-	mi := &file_proto_zkid_v1_zkid_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *VerifyTBSRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*VerifyTBSRequest) ProtoMessage() {}
-
-func (x *VerifyTBSRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_zkid_v1_zkid_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use VerifyTBSRequest.ProtoReflect.Descriptor instead.
-func (*VerifyTBSRequest) Descriptor() ([]byte, []int) {
-	return file_proto_zkid_v1_zkid_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *VerifyTBSRequest) GetChallengeId() string {
-	if x != nil {
-		return x.ChallengeId
-	}
-	return ""
-}
-
-func (x *VerifyTBSRequest) GetTbsHashBits() []int32 {
-	if x != nil {
-		return x.TbsHashBits
-	}
-	return nil
-}
-
-func (x *VerifyTBSRequest) GetNullifier() string {
-	if x != nil {
-		return x.Nullifier
-	}
-	return ""
-}
-
-type VerifyTBSResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Verified      bool                   `protobuf:"varint,1,opt,name=verified,proto3" json:"verified,omitempty"`
-	Nullifier     string                 `protobuf:"bytes,2,opt,name=nullifier,proto3" json:"nullifier,omitempty"`
-	IdVerified    bool                   `protobuf:"varint,3,opt,name=id_verified,json=idVerified,proto3" json:"id_verified,omitempty"`
-	Persisted     bool                   `protobuf:"varint,4,opt,name=persisted,proto3" json:"persisted,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *VerifyTBSResponse) Reset() {
-	*x = VerifyTBSResponse{}
-	mi := &file_proto_zkid_v1_zkid_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *VerifyTBSResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*VerifyTBSResponse) ProtoMessage() {}
-
-func (x *VerifyTBSResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_zkid_v1_zkid_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use VerifyTBSResponse.ProtoReflect.Descriptor instead.
-func (*VerifyTBSResponse) Descriptor() ([]byte, []int) {
-	return file_proto_zkid_v1_zkid_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *VerifyTBSResponse) GetVerified() bool {
-	if x != nil {
-		return x.Verified
-	}
-	return false
-}
-
-func (x *VerifyTBSResponse) GetNullifier() string {
-	if x != nil {
-		return x.Nullifier
-	}
-	return ""
-}
-
-func (x *VerifyTBSResponse) GetIdVerified() bool {
-	if x != nil {
-		return x.IdVerified
-	}
-	return false
-}
-
-func (x *VerifyTBSResponse) GetPersisted() bool {
-	if x != nil {
-		return x.Persisted
-	}
-	return false
-}
-
-type GetVerificationStatusRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Nullifier     string                 `protobuf:"bytes,1,opt,name=nullifier,proto3" json:"nullifier,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetVerificationStatusRequest) Reset() {
-	*x = GetVerificationStatusRequest{}
-	mi := &file_proto_zkid_v1_zkid_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetVerificationStatusRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetVerificationStatusRequest) ProtoMessage() {}
-
-func (x *GetVerificationStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_zkid_v1_zkid_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetVerificationStatusRequest.ProtoReflect.Descriptor instead.
-func (*GetVerificationStatusRequest) Descriptor() ([]byte, []int) {
-	return file_proto_zkid_v1_zkid_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *GetVerificationStatusRequest) GetNullifier() string {
-	if x != nil {
-		return x.Nullifier
-	}
-	return ""
-}
-
-type GetVerificationStatusResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Nullifier     string                 `protobuf:"bytes,1,opt,name=nullifier,proto3" json:"nullifier,omitempty"`
-	IdVerified    bool                   `protobuf:"varint,2,opt,name=id_verified,json=idVerified,proto3" json:"id_verified,omitempty"`
-	ProofType     string                 `protobuf:"bytes,3,opt,name=proof_type,json=proofType,proto3" json:"proof_type,omitempty"`
-	VerifiedAt    string                 `protobuf:"bytes,4,opt,name=verified_at,json=verifiedAt,proto3" json:"verified_at,omitempty"`
-	ChallengeId   string                 `protobuf:"bytes,5,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetVerificationStatusResponse) Reset() {
-	*x = GetVerificationStatusResponse{}
-	mi := &file_proto_zkid_v1_zkid_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetVerificationStatusResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetVerificationStatusResponse) ProtoMessage() {}
-
-func (x *GetVerificationStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_zkid_v1_zkid_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetVerificationStatusResponse.ProtoReflect.Descriptor instead.
-func (*GetVerificationStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_zkid_v1_zkid_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *GetVerificationStatusResponse) GetNullifier() string {
-	if x != nil {
-		return x.Nullifier
-	}
-	return ""
-}
-
-func (x *GetVerificationStatusResponse) GetIdVerified() bool {
-	if x != nil {
-		return x.IdVerified
-	}
-	return false
-}
-
-func (x *GetVerificationStatusResponse) GetProofType() string {
-	if x != nil {
-		return x.ProofType
-	}
-	return ""
-}
-
-func (x *GetVerificationStatusResponse) GetVerifiedAt() string {
-	if x != nil {
-		return x.VerifiedAt
-	}
-	return ""
-}
-
-func (x *GetVerificationStatusResponse) GetChallengeId() string {
-	if x != nil {
-		return x.ChallengeId
-	}
-	return ""
-}
-
 var File_proto_zkid_v1_zkid_proto protoreflect.FileDescriptor
 
 const file_proto_zkid_v1_zkid_proto_rawDesc = "" +
@@ -769,35 +521,12 @@ const file_proto_zkid_v1_zkid_proto_rawDesc = "" +
 	"\bobserved\x18\x04 \x01(\tR\bobserved\x12!\n" +
 	"\ftrust_source\x18\x05 \x01(\tR\vtrustSource\x12\x1d\n" +
 	"\n" +
-	"trusted_at\x18\x06 \x01(\tR\ttrustedAt\"w\n" +
-	"\x10VerifyTBSRequest\x12!\n" +
-	"\fchallenge_id\x18\x01 \x01(\tR\vchallengeId\x12\"\n" +
-	"\rtbs_hash_bits\x18\x02 \x03(\x05R\vtbsHashBits\x12\x1c\n" +
-	"\tnullifier\x18\x03 \x01(\tR\tnullifier\"\x8c\x01\n" +
-	"\x11VerifyTBSResponse\x12\x1a\n" +
-	"\bverified\x18\x01 \x01(\bR\bverified\x12\x1c\n" +
-	"\tnullifier\x18\x02 \x01(\tR\tnullifier\x12\x1f\n" +
-	"\vid_verified\x18\x03 \x01(\bR\n" +
-	"idVerified\x12\x1c\n" +
-	"\tpersisted\x18\x04 \x01(\bR\tpersisted\"<\n" +
-	"\x1cGetVerificationStatusRequest\x12\x1c\n" +
-	"\tnullifier\x18\x01 \x01(\tR\tnullifier\"\xc1\x01\n" +
-	"\x1dGetVerificationStatusResponse\x12\x1c\n" +
-	"\tnullifier\x18\x01 \x01(\tR\tnullifier\x12\x1f\n" +
-	"\vid_verified\x18\x02 \x01(\bR\n" +
-	"idVerified\x12\x1d\n" +
-	"\n" +
-	"proof_type\x18\x03 \x01(\tR\tproofType\x12\x1f\n" +
-	"\vverified_at\x18\x04 \x01(\tR\n" +
-	"verifiedAt\x12!\n" +
-	"\fchallenge_id\x18\x05 \x01(\tR\vchallengeId2\xa4\x03\n" +
+	"trusted_at\x18\x06 \x01(\tR\ttrustedAt2\xf8\x01\n" +
 	"\fZkIDVerifier\x12T\n" +
 	"\x0fCreateChallenge\x12\x1f.zkid.v1.CreateChallengeRequest\x1a .zkid.v1.CreateChallengeResponse\x12K\n" +
 	"\fGetChallenge\x12\x1c.zkid.v1.GetChallengeRequest\x1a\x1d.zkid.v1.GetChallengeResponse\x12E\n" +
 	"\n" +
-	"LinkVerify\x12\x1a.zkid.v1.LinkVerifyRequest\x1a\x1b.zkid.v1.LinkVerifyResponse\x12B\n" +
-	"\tVerifyTBS\x12\x19.zkid.v1.VerifyTBSRequest\x1a\x1a.zkid.v1.VerifyTBSResponse\x12f\n" +
-	"\x15GetVerificationStatus\x12%.zkid.v1.GetVerificationStatusRequest\x1a&.zkid.v1.GetVerificationStatusResponseB:Z8github.com/zkmopro/go-zkid-verifier/proto/zkid/v1;zkidv1b\x06proto3"
+	"LinkVerify\x12\x1a.zkid.v1.LinkVerifyRequest\x1a\x1b.zkid.v1.LinkVerifyResponseB:Z8github.com/zkmopro/go-zkid-verifier/proto/zkid/v1;zkidv1b\x06proto3"
 
 var (
 	file_proto_zkid_v1_zkid_proto_rawDescOnce sync.Once
@@ -811,37 +540,29 @@ func file_proto_zkid_v1_zkid_proto_rawDescGZIP() []byte {
 	return file_proto_zkid_v1_zkid_proto_rawDescData
 }
 
-var file_proto_zkid_v1_zkid_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_proto_zkid_v1_zkid_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_proto_zkid_v1_zkid_proto_goTypes = []any{
-	(*CreateChallengeRequest)(nil),        // 0: zkid.v1.CreateChallengeRequest
-	(*CreateChallengeResponse)(nil),       // 1: zkid.v1.CreateChallengeResponse
-	(*GetChallengeRequest)(nil),           // 2: zkid.v1.GetChallengeRequest
-	(*GetChallengeResponse)(nil),          // 3: zkid.v1.GetChallengeResponse
-	(*LinkVerifyRequest)(nil),             // 4: zkid.v1.LinkVerifyRequest
-	(*LinkVerifyResponse)(nil),            // 5: zkid.v1.LinkVerifyResponse
-	(*SmtRootOutcome)(nil),                // 6: zkid.v1.SmtRootOutcome
-	(*VerifyTBSRequest)(nil),              // 7: zkid.v1.VerifyTBSRequest
-	(*VerifyTBSResponse)(nil),             // 8: zkid.v1.VerifyTBSResponse
-	(*GetVerificationStatusRequest)(nil),  // 9: zkid.v1.GetVerificationStatusRequest
-	(*GetVerificationStatusResponse)(nil), // 10: zkid.v1.GetVerificationStatusResponse
+	(*CreateChallengeRequest)(nil),  // 0: zkid.v1.CreateChallengeRequest
+	(*CreateChallengeResponse)(nil), // 1: zkid.v1.CreateChallengeResponse
+	(*GetChallengeRequest)(nil),     // 2: zkid.v1.GetChallengeRequest
+	(*GetChallengeResponse)(nil),    // 3: zkid.v1.GetChallengeResponse
+	(*LinkVerifyRequest)(nil),       // 4: zkid.v1.LinkVerifyRequest
+	(*LinkVerifyResponse)(nil),      // 5: zkid.v1.LinkVerifyResponse
+	(*SmtRootOutcome)(nil),          // 6: zkid.v1.SmtRootOutcome
 }
 var file_proto_zkid_v1_zkid_proto_depIdxs = []int32{
-	6,  // 0: zkid.v1.LinkVerifyResponse.smt_root:type_name -> zkid.v1.SmtRootOutcome
-	0,  // 1: zkid.v1.ZkIDVerifier.CreateChallenge:input_type -> zkid.v1.CreateChallengeRequest
-	2,  // 2: zkid.v1.ZkIDVerifier.GetChallenge:input_type -> zkid.v1.GetChallengeRequest
-	4,  // 3: zkid.v1.ZkIDVerifier.LinkVerify:input_type -> zkid.v1.LinkVerifyRequest
-	7,  // 4: zkid.v1.ZkIDVerifier.VerifyTBS:input_type -> zkid.v1.VerifyTBSRequest
-	9,  // 5: zkid.v1.ZkIDVerifier.GetVerificationStatus:input_type -> zkid.v1.GetVerificationStatusRequest
-	1,  // 6: zkid.v1.ZkIDVerifier.CreateChallenge:output_type -> zkid.v1.CreateChallengeResponse
-	3,  // 7: zkid.v1.ZkIDVerifier.GetChallenge:output_type -> zkid.v1.GetChallengeResponse
-	5,  // 8: zkid.v1.ZkIDVerifier.LinkVerify:output_type -> zkid.v1.LinkVerifyResponse
-	8,  // 9: zkid.v1.ZkIDVerifier.VerifyTBS:output_type -> zkid.v1.VerifyTBSResponse
-	10, // 10: zkid.v1.ZkIDVerifier.GetVerificationStatus:output_type -> zkid.v1.GetVerificationStatusResponse
-	6,  // [6:11] is the sub-list for method output_type
-	1,  // [1:6] is the sub-list for method input_type
-	1,  // [1:1] is the sub-list for extension type_name
-	1,  // [1:1] is the sub-list for extension extendee
-	0,  // [0:1] is the sub-list for field type_name
+	6, // 0: zkid.v1.LinkVerifyResponse.smt_root:type_name -> zkid.v1.SmtRootOutcome
+	0, // 1: zkid.v1.ZkIDVerifier.CreateChallenge:input_type -> zkid.v1.CreateChallengeRequest
+	2, // 2: zkid.v1.ZkIDVerifier.GetChallenge:input_type -> zkid.v1.GetChallengeRequest
+	4, // 3: zkid.v1.ZkIDVerifier.LinkVerify:input_type -> zkid.v1.LinkVerifyRequest
+	1, // 4: zkid.v1.ZkIDVerifier.CreateChallenge:output_type -> zkid.v1.CreateChallengeResponse
+	3, // 5: zkid.v1.ZkIDVerifier.GetChallenge:output_type -> zkid.v1.GetChallengeResponse
+	5, // 6: zkid.v1.ZkIDVerifier.LinkVerify:output_type -> zkid.v1.LinkVerifyResponse
+	4, // [4:7] is the sub-list for method output_type
+	1, // [1:4] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_proto_zkid_v1_zkid_proto_init() }
@@ -855,7 +576,7 @@ func file_proto_zkid_v1_zkid_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_zkid_v1_zkid_proto_rawDesc), len(file_proto_zkid_v1_zkid_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

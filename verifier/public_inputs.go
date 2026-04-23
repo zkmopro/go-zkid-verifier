@@ -148,7 +148,6 @@ type ParsedInputs struct {
 	SubjectDNHash    string   `json:"subject_dn_hash"`
 	IssuerRSAModulus []string `json:"issuer_rsa_modulus"`
 	SmtRoot          string   `json:"smt_root"`
-	SerialNumber     string   `json:"serial_number"`
 }
 
 // ParsePublicInputsRS2048 parses raw PublicSignals from an RS2048 link-verify

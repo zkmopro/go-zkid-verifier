@@ -19,6 +19,26 @@ const (
 	ProofTypeRS4096 ProofType = "rs4096" // cert_chain_rs4096 + device_sig_rs2048
 )
 
+// ParseProofType validates cert_chain_type. An empty string defaults to RS2048.
+func ParseProofType(s string) (ProofType, error) {
+	switch s {
+	case "", string(ProofTypeRS2048):
+		return ProofTypeRS2048, nil
+	case string(ProofTypeRS4096):
+		return ProofTypeRS4096, nil
+	default:
+		return "", fmt.Errorf("invalid cert_chain_type: must be %q or %q", ProofTypeRS2048, ProofTypeRS4096)
+	}
+}
+
+// StoreKey is the string recorded in the verifications.proof_type column.
+func (pt ProofType) StoreKey() string {
+	if pt == ProofTypeRS4096 {
+		return "link_rs4096"
+	}
+	return "link_rs2048"
+}
+
 // maxConcurrent limits parallel ZK verifications to prevent temp dir / CPU exhaustion.
 var verifySem = make(chan struct{}, 10)
 
@@ -43,13 +63,8 @@ func proofFileNames(pt ProofType) (ccProof, dsProof, ccVK, dsVK string) {
 	return
 }
 
-// Verify runs link-verify on the provided proofs using verifying keys from keysDir.
-//
-// It creates a temp directory, writes the proof bytes to it, symlinks the
-// verifying keys from keysDir, calls the Rust FFI, and cleans up.
-// Concurrent calls are bounded by a semaphore to prevent resource exhaustion.
+// Verify runs link verification with the configured proof type.
 func Verify(req Request, keysDir string) (bool, *PublicSignals, error) {
-	// Acquire semaphore slot to bound concurrent verifications.
 	verifySem <- struct{}{}
 	defer func() { <-verifySem }()
 
@@ -60,7 +75,6 @@ func Verify(req Request, keysDir string) (bool, *PublicSignals, error) {
 
 	ccProofName, dsProofName, ccVKName, dsVKName := proofFileNames(pt)
 
-	// Create temp directory with keys/ subdirectory
 	tmpDir, err := os.MkdirTemp("", "zkid-linkverify-*")
 	if err != nil {
 		return false, nil, fmt.Errorf("create temp dir: %w", err)
@@ -72,7 +86,6 @@ func Verify(req Request, keysDir string) (bool, *PublicSignals, error) {
 		return false, nil, fmt.Errorf("create temp keys dir: %w", err)
 	}
 
-	// Write proof bytes with restrictive permissions (user-only read/write).
 	if err := os.WriteFile(filepath.Join(tmpKeys, ccProofName), req.CertChainProof, 0o600); err != nil {
 		return false, nil, fmt.Errorf("write cert-chain proof: %w", err)
 	}
@@ -80,7 +93,6 @@ func Verify(req Request, keysDir string) (bool, *PublicSignals, error) {
 		return false, nil, fmt.Errorf("write device-sig proof: %w", err)
 	}
 
-	// Symlink verifying keys from the permanent keys directory
 	for _, vk := range []string{ccVKName, dsVKName} {
 		src := filepath.Join(keysDir, vk)
 		dst := filepath.Join(tmpKeys, vk)
@@ -89,7 +101,6 @@ func Verify(req Request, keysDir string) (bool, *PublicSignals, error) {
 		}
 	}
 
-	// Call FFI
 	certChainType := verifier.CertChainRS2048
 	if pt == ProofTypeRS4096 {
 		certChainType = verifier.CertChainRS4096

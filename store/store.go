@@ -51,14 +51,9 @@ type Store interface {
 	// and consumes the challenge inside a single DB transaction.
 	//
 	// Checks inside TX: challenge exists, not expired, not consumed, nullifier unique.
-	// proof is nil if no proof data is provided (issue #9 will populate this).
-	// proofType identifies the verification method: "tbs", "link_rs2048", "link_rs4096".
+	// proofType identifies the verification method: "link_rs2048" or "link_rs4096".
 	//
 	// Returns sentinel errors: ErrChallengeNotFound, ErrChallengeExpired,
 	// ErrChallengeConsumed, ErrDuplicateNullifier.
 	VerifyAndRecord(ctx context.Context, nullifier, challengeID string, proof *string, proofType string) error
-
-	// GetVerification retrieves verification status by nullifier.
-	// Returns nil, nil if not found.
-	GetVerification(ctx context.Context, nullifier string) (*VerificationRecord, error)
 }

@@ -46,7 +46,7 @@ func (v *Verifier) Verify(req Request) (*Result, error) {
 		return nil, err
 	}
 	if !ffiVerified {
-		return &Result{Verified: false, Reason: "proof_invalid", Signals: signals}, nil
+		return &Result{Verified: false, Reason: ReasonProofInvalid, Signals: signals}, nil
 	}
 
 	certChainType := verifier.CertChainRS2048
@@ -70,7 +70,7 @@ func (v *Verifier) Verify(req Request) (*Result, error) {
 	res.SmtRoot = outcome
 	if !outcome.Match {
 		res.Verified = false
-		res.Reason = "smt_root_mismatch"
+		res.Reason = ReasonSmtRootMismatch
 	}
 	return res, nil
 }

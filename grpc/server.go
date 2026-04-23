@@ -6,7 +6,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/zkmopro/go-zkid-verifier/challenge"
 	"github.com/zkmopro/go-zkid-verifier/linkverify"
 	pb "github.com/zkmopro/go-zkid-verifier/proto/zkid/v1"
 	"github.com/zkmopro/go-zkid-verifier/store"
@@ -14,15 +13,15 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Server implements the ZkIDVerifier gRPC service.
+// Server implements the zkid gRPC service.
 type Server struct {
 	pb.UnimplementedZkIDVerifierServer
-	store    store.Store
-	verifier *linkverify.Verifier
+	service *linkverify.Service
+	store   store.Store
 }
 
-func NewServer(s store.Store, v *linkverify.Verifier) *Server {
-	return &Server{store: s, verifier: v}
+func NewServer(service *linkverify.Service, s store.Store) *Server {
+	return &Server{service: service, store: s}
 }
 
 func (s *Server) CreateChallenge(ctx context.Context, _ *pb.CreateChallengeRequest) (*pb.CreateChallengeResponse, error) {
@@ -44,6 +43,7 @@ func (s *Server) GetChallenge(ctx context.Context, req *pb.GetChallengeRequest) 
 	}
 	c, err := s.store.GetChallenge(ctx, req.ChallengeId)
 	if err != nil {
+		log.Printf("get challenge error: %v", err)
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	if c == nil {
@@ -70,62 +70,38 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 		return nil, status.Errorf(codes.InvalidArgument, "nullifier is required")
 	}
 
-	pt, err := parseCertChainType(req.CertChainType)
+	pt, err := linkverify.ParseProofType(req.CertChainType)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	// Validate challenge
-	c, err := s.store.GetChallenge(ctx, req.ChallengeId)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "internal error")
-	}
-	if c == nil {
-		return nil, status.Errorf(codes.NotFound, "challenge not found")
-	}
-	if time.Now().After(c.ExpiresAt) {
-		return nil, status.Errorf(codes.FailedPrecondition, "challenge expired")
-	}
-
-	result, err := s.verifier.Verify(linkverify.Request{
+	result, err := s.service.VerifyAndRecordByID(ctx, req.ChallengeId, req.Nullifier, linkverify.Request{
 		CertChainProof: req.CertChainProof,
 		DeviceSigProof: req.DeviceSigProof,
 		ProofType:      pt,
 	})
 	if err != nil {
-		log.Printf("link-verify error: %v", err)
-		return nil, status.Errorf(codes.Internal, "proof verification failed")
+		return nil, mapServiceError(err, req.Nullifier)
 	}
+
 	if !result.Verified {
 		return &pb.LinkVerifyResponse{
 			Verified:  false,
-			Nullifier: req.Nullifier,
+			Nullifier: result.Nullifier,
 			Reason:    result.Reason,
 			SmtRoot:   smtRootOutcomeToProto(result.SmtRoot),
 		}, nil
 	}
 
-	// Record verification
-	proofType := "link_rs2048"
-	if pt == linkverify.ProofTypeRS4096 {
-		proofType = "link_rs4096"
-	}
-	err = s.store.VerifyAndRecord(ctx, req.Nullifier, req.ChallengeId, nil, proofType)
-	if err != nil {
-		return nil, storeErrorToGRPC(err)
-	}
-
 	return &pb.LinkVerifyResponse{
 		Verified:   true,
-		Nullifier:  req.Nullifier,
+		Nullifier:  result.Nullifier,
 		IdVerified: true,
 		Persisted:  true,
 		SmtRoot:    smtRootOutcomeToProto(result.SmtRoot),
 	}, nil
 }
 
-// smtRootOutcomeToProto returns nil for nil input so enforcement-disabled
-// servers leave the field absent rather than zero-valued.
 func smtRootOutcomeToProto(o *linkverify.SmtRootOutcome) *pb.SmtRootOutcome {
 	if o == nil {
 		return nil
@@ -143,97 +119,21 @@ func smtRootOutcomeToProto(o *linkverify.SmtRootOutcome) *pb.SmtRootOutcome {
 	return out
 }
 
-func (s *Server) VerifyTBS(ctx context.Context, req *pb.VerifyTBSRequest) (*pb.VerifyTBSResponse, error) {
-	if req.ChallengeId == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "challenge_id is required")
-	}
-	if req.Nullifier == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "nullifier is required")
-	}
-
-	c, err := s.store.GetChallenge(ctx, req.ChallengeId)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "internal error")
-	}
-	if c == nil {
-		return nil, status.Errorf(codes.NotFound, "challenge not found")
-	}
-	if time.Now().After(c.ExpiresAt) {
-		return nil, status.Errorf(codes.FailedPrecondition, "challenge expired")
-	}
-
-	// Convert int32 slice to int slice
-	bits := make([]int, len(req.TbsHashBits))
-	for i, b := range req.TbsHashBits {
-		bits[i] = int(b)
-	}
-
-	verified := challenge.VerifyTBSHash(c.Bytes, bits)
-	if !verified {
-		return &pb.VerifyTBSResponse{
-			Verified:  false,
-			Nullifier: req.Nullifier,
-		}, nil
-	}
-
-	err = s.store.VerifyAndRecord(ctx, req.Nullifier, req.ChallengeId, nil, "tbs")
-	if err != nil {
-		return nil, storeErrorToGRPC(err)
-	}
-
-	return &pb.VerifyTBSResponse{
-		Verified:   true,
-		Nullifier:  req.Nullifier,
-		IdVerified: true,
-		Persisted:  true,
-	}, nil
-}
-
-func (s *Server) GetVerificationStatus(ctx context.Context, req *pb.GetVerificationStatusRequest) (*pb.GetVerificationStatusResponse, error) {
-	if req.Nullifier == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "nullifier is required")
-	}
-
-	rec, err := s.store.GetVerification(ctx, req.Nullifier)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "internal error")
-	}
-	if rec == nil {
-		return nil, status.Errorf(codes.NotFound, "nullifier not found")
-	}
-
-	return &pb.GetVerificationStatusResponse{
-		Nullifier:   rec.Nullifier,
-		IdVerified:  rec.IDVerified,
-		ProofType:   rec.ProofType,
-		VerifiedAt:  rec.VerifiedAt.Format(time.RFC3339),
-		ChallengeId: rec.ChallengeID,
-	}, nil
-}
-
-// parseCertChainType validates the cert_chain_type field.
-func parseCertChainType(s string) (linkverify.ProofType, error) {
-	switch s {
-	case "", "rs2048":
-		return linkverify.ProofTypeRS2048, nil
-	case "rs4096":
-		return linkverify.ProofTypeRS4096, nil
-	default:
-		return "", errors.New("invalid cert_chain_type: must be rs2048 or rs4096")
-	}
-}
-
-func storeErrorToGRPC(err error) error {
+func mapServiceError(err error, nullifier string) error {
 	switch {
 	case errors.Is(err, store.ErrDuplicateNullifier):
-		return status.Errorf(codes.AlreadyExists, "nullifier already registered")
+		return status.Errorf(codes.AlreadyExists, "nullifier %s already registered", nullifier)
 	case errors.Is(err, store.ErrChallengeNotFound):
 		return status.Errorf(codes.NotFound, "challenge not found")
 	case errors.Is(err, store.ErrChallengeExpired):
 		return status.Errorf(codes.FailedPrecondition, "challenge expired")
 	case errors.Is(err, store.ErrChallengeConsumed):
 		return status.Errorf(codes.FailedPrecondition, "challenge already consumed")
+	case errors.Is(err, linkverify.ErrSmtRootUnavailable):
+		log.Printf("link-verify smt root unavailable: %v", err)
+		return status.Errorf(codes.Unavailable, "smt root provider unavailable, retry later")
 	default:
-		return status.Errorf(codes.Internal, "internal error")
+		log.Printf("link-verify error: %v", err)
+		return status.Errorf(codes.Internal, "proof verification failed")
 	}
 }
