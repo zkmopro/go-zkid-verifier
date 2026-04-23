@@ -86,19 +86,21 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 
 	if !result.Verified {
 		return &pb.LinkVerifyResponse{
-			Verified:  false,
-			Nullifier: result.Nullifier,
-			Reason:    result.Reason,
-			SmtRoot:   smtRootOutcomeToProto(result.SmtRoot),
+			Verified:      false,
+			Nullifier:     result.Nullifier,
+			Reason:        result.Reason,
+			SmtRoot:       smtRootOutcomeToProto(result.SmtRoot),
+			IssuerModulus: issuerModulusOutcomeToProto(result.IssuerModulus),
 		}, nil
 	}
 
 	return &pb.LinkVerifyResponse{
-		Verified:   true,
-		Nullifier:  result.Nullifier,
-		IdVerified: true,
-		Persisted:  true,
-		SmtRoot:    smtRootOutcomeToProto(result.SmtRoot),
+		Verified:      true,
+		Nullifier:     result.Nullifier,
+		IdVerified:    true,
+		Persisted:     true,
+		SmtRoot:       smtRootOutcomeToProto(result.SmtRoot),
+		IssuerModulus: issuerModulusOutcomeToProto(result.IssuerModulus),
 	}, nil
 }
 
@@ -119,6 +121,22 @@ func smtRootOutcomeToProto(o *linkverify.SmtRootOutcome) *pb.SmtRootOutcome {
 	return out
 }
 
+func issuerModulusOutcomeToProto(o *linkverify.IssuerModulusOutcome) *pb.IssuerModulusOutcome {
+	if o == nil {
+		return nil
+	}
+	out := &pb.IssuerModulusOutcome{
+		Issuer:         o.IssuerName,
+		Match:          o.Match,
+		ExpectedSha256: o.ExpectedSHA256,
+		TrustSource:    o.TrustSource,
+	}
+	if !o.TrustedAt.IsZero() {
+		out.TrustedAt = o.TrustedAt.Format(time.RFC3339)
+	}
+	return out
+}
+
 func mapServiceError(err error, nullifier string) error {
 	switch {
 	case errors.Is(err, store.ErrDuplicateNullifier):
@@ -132,6 +150,9 @@ func mapServiceError(err error, nullifier string) error {
 	case errors.Is(err, linkverify.ErrSmtRootUnavailable):
 		log.Printf("link-verify smt root unavailable: %v", err)
 		return status.Errorf(codes.Unavailable, "smt root provider unavailable, retry later")
+	case errors.Is(err, linkverify.ErrIssuerCertUnavailable):
+		log.Printf("link-verify issuer cert unavailable: %v", err)
+		return status.Errorf(codes.Unavailable, "issuer cert provider unavailable, retry later")
 	default:
 		log.Printf("link-verify error: %v", err)
 		return status.Errorf(codes.Internal, "proof verification failed")

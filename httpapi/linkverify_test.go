@@ -55,8 +55,6 @@ func postLinkVerify(t *testing.T, h http.Handler, body LinkVerifyRequest) *httpt
 	return w
 }
 
-// 409 Conflict with reason=smt_root_mismatch lets clients distinguish a stale
-// root from an invalid proof without inspecting the body.
 func TestLinkVerify_SmtRootMismatchReturns409(t *testing.T) {
 	fv := &fakeVerifier{
 		result: &linkverify.Result{
@@ -71,7 +69,7 @@ func TestLinkVerify_SmtRootMismatchReturns409(t *testing.T) {
 		},
 	}
 	svc := linkverify.NewService(fv, &fakeHTTPStore{})
-	h := NewRouter(svc, &fakeHTTPStore{}, nil)
+	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil)
 
 	w := postLinkVerify(t, h, LinkVerifyRequest{
 		CertChainType:  "rs2048",
@@ -101,7 +99,7 @@ func TestLinkVerify_ProofInvalidStays200(t *testing.T) {
 		result: &linkverify.Result{Verified: false, Reason: "proof_invalid"},
 	}
 	svc := linkverify.NewService(fv, &fakeHTTPStore{})
-	h := NewRouter(svc, &fakeHTTPStore{}, nil)
+	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil)
 
 	w := postLinkVerify(t, h, LinkVerifyRequest{
 		CertChainType:  "rs2048",
@@ -113,12 +111,60 @@ func TestLinkVerify_ProofInvalidStays200(t *testing.T) {
 	}
 }
 
-// 503 signals that the server can't presently verify SMT roots (upstream
-// fetch failing). Clients should retry rather than treat it as a bad proof.
 func TestLinkVerify_SmtRootUnavailableReturns503(t *testing.T) {
 	fv := &fakeVerifier{err: linkverify.ErrSmtRootUnavailable}
 	svc := linkverify.NewService(fv, &fakeHTTPStore{})
-	h := NewRouter(svc, &fakeHTTPStore{}, nil)
+	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil)
+
+	w := postLinkVerify(t, h, LinkVerifyRequest{
+		CertChainType:  "rs2048",
+		CertChainProof: []byte("x"),
+		DeviceSigProof: []byte("x"),
+	})
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status: got %d, want %d", w.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestLinkVerify_IssuerModulusMismatchReturns409(t *testing.T) {
+	fv := &fakeVerifier{
+		result: &linkverify.Result{
+			Verified: false,
+			Reason:   "issuer_modulus_mismatch",
+			IssuerModulus: &linkverify.IssuerModulusOutcome{
+				IssuerName:     "g2",
+				Match:          false,
+				ExpectedSHA256: "0xc4c4...",
+			},
+		},
+	}
+	svc := linkverify.NewService(fv, &fakeHTTPStore{})
+	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil)
+
+	w := postLinkVerify(t, h, LinkVerifyRequest{
+		CertChainType:  "rs2048",
+		CertChainProof: []byte("x"),
+		DeviceSigProof: []byte("x"),
+	})
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status: got %d, want %d", w.Code, http.StatusConflict)
+	}
+	var resp VerifyFailResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v body=%s", err, w.Body.String())
+	}
+	if resp.Reason != "issuer_modulus_mismatch" {
+		t.Errorf("Reason: got %q", resp.Reason)
+	}
+	if resp.IssuerModulus == nil || resp.IssuerModulus.IssuerName != "g2" {
+		t.Errorf("IssuerModulus details missing: %+v", resp.IssuerModulus)
+	}
+}
+
+func TestLinkVerify_IssuerCertUnavailableReturns503(t *testing.T) {
+	fv := &fakeVerifier{err: linkverify.ErrIssuerCertUnavailable}
+	svc := linkverify.NewService(fv, &fakeHTTPStore{})
+	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil)
 
 	w := postLinkVerify(t, h, LinkVerifyRequest{
 		CertChainType:  "rs2048",
@@ -145,7 +191,7 @@ func TestLinkVerify_DuplicateNullifier409IncludesNullifier(t *testing.T) {
 		recordErr: store.ErrDuplicateNullifier,
 	}
 	svc := linkverify.NewService(fv, fs)
-	h := NewRouter(svc, fs, nil)
+	h := NewRouter(svc, fs, nil, nil)
 
 	w := postLinkVerify(t, h, LinkVerifyRequest{
 		CertChainType:  "rs2048",

@@ -42,6 +42,9 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 			case errors.Is(err, linkverify.ErrSmtRootUnavailable):
 				log.Printf("link-verify smt root unavailable: %v", err)
 				jsonError(w, "smt root provider unavailable, retry later", http.StatusServiceUnavailable)
+			case errors.Is(err, linkverify.ErrIssuerCertUnavailable):
+				log.Printf("link-verify issuer cert unavailable: %v", err)
+				jsonError(w, "issuer cert provider unavailable, retry later", http.StatusServiceUnavailable)
 			case errors.Is(err, store.ErrChallengeExpired),
 				errors.Is(err, store.ErrChallengeConsumed),
 				errors.Is(err, store.ErrDuplicateNullifier):
@@ -58,15 +61,17 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 		}
 		if !result.Verified {
 			status := http.StatusOK
-			if result.Reason == linkverify.ReasonSmtRootMismatch {
+			if result.Reason == linkverify.ReasonSmtRootMismatch ||
+				result.Reason == linkverify.ReasonIssuerModulusMismatch {
 				status = http.StatusConflict
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(status)
 			json.NewEncoder(w).Encode(VerifyFailResponse{
-				Verified: false,
-				Reason:   result.Reason,
-				SmtRoot:  result.SmtRoot,
+				Verified:      false,
+				Reason:        result.Reason,
+				SmtRoot:       result.SmtRoot,
+				IssuerModulus: result.IssuerModulus,
 			})
 			return
 		}
@@ -83,6 +88,7 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 			PublicSignals: result.Signals,
 			ParsedInputs:  result.Parsed,
 			SmtRoot:       result.SmtRoot,
+			IssuerModulus: result.IssuerModulus,
 		})
 	}
 }
