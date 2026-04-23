@@ -13,6 +13,7 @@ import (
 
 	"github.com/zkmopro/go-zkid-verifier/challenge"
 	zkgrpc "github.com/zkmopro/go-zkid-verifier/grpc"
+	"github.com/zkmopro/go-zkid-verifier/httpapi"
 	"github.com/zkmopro/go-zkid-verifier/keymanager"
 	"github.com/zkmopro/go-zkid-verifier/linkverify"
 	pb "github.com/zkmopro/go-zkid-verifier/proto/zkid/v1"
@@ -78,7 +79,7 @@ func main() {
 		defer provider.Stop()
 	}
 
-	handler := challenge.NewHandler(s, verifier)
+	service := linkverify.NewService(verifier, s)
 
 	// Bind gRPC listener in main (fail fast before any server starts)
 	grpcLis, err := net.Listen("tcp", grpcAddr)
@@ -86,9 +87,7 @@ func main() {
 		log.Fatalf("gRPC listen on %s: %v", grpcAddr, err)
 	}
 
-	// HTTP server
-	mux := http.NewServeMux()
-	handler.RegisterRoutes(mux)
+	mux := httpapi.NewRouter(service, s, provider)
 
 	fmt.Printf("=== zkID Verifier Server ===\n")
 	fmt.Printf("HTTP listening on %s\n", httpAddr)
@@ -98,9 +97,7 @@ func main() {
 	fmt.Printf("REST Endpoints:\n")
 	fmt.Printf("  POST /challenge              - Generate a new challenge\n")
 	fmt.Printf("  GET  /challenge/{id}         - Retrieve a challenge\n")
-	fmt.Printf("  POST /verify-tbs             - Verify TBS hash against challenge\n")
 	fmt.Printf("  POST /link-verify            - Verify ZK proofs with pk_commit linkage\n")
-	fmt.Printf("  GET  /users/{nullifier}/status - Query verification status\n")
 	fmt.Printf("  GET  /smt-root/status        - Query trusted SMT root cache\n\n")
 
 	// Start gRPC server in a goroutine (listener already bound)
@@ -108,7 +105,7 @@ func main() {
 		grpcServer := grpc.NewServer(
 			grpc.MaxRecvMsgSize(2 * 1024 * 1024), // 2MB, match HTTP limit
 		)
-		pb.RegisterZkIDVerifierServer(grpcServer, zkgrpc.NewServer(s, verifier))
+		pb.RegisterZkIDVerifierServer(grpcServer, zkgrpc.NewServer(service, s))
 		log.Printf("gRPC server started on %s", grpcAddr)
 		if err := grpcServer.Serve(grpcLis); err != nil {
 			log.Printf("gRPC serve error: %v", err)
