@@ -236,8 +236,6 @@ CROSS_CONTAINER_OPTS="-v /path/to/zkID:/path/to/zkID" \
 
 mkdir -p lib/x86_64-unknown-linux-gnu
 cp rust/target/x86_64-unknown-linux-gnu/release/libzk_verifier.a lib/x86_64-unknown-linux-gnu/
-cp $(find rust/target/x86_64-unknown-linux-gnu/release/build -name "libwitnesscalc_rs256.so" -path "*/package/lib/*" | head -1) \
-   lib/x86_64-unknown-linux-gnu/
 ```
 
 `rust/Cross.toml` pre-installs `nasm` and `libgmp-dev`.
