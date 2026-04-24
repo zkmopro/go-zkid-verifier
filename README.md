@@ -101,7 +101,8 @@ Both `smt_root` and `issuer_modulus` blocks are present whenever their respectiv
 | `200` | `verified=true` — proof accepted, record persisted, challenge consumed. |  |
 | `200` | `verified=false, reason="proof_invalid"` — FFI rejected the proof. | Record **not** persisted, challenge **not** consumed. |
 | `400` | Request body malformed or missing `cert_chain_proof` / `device_sig_proof` / valid `cert_chain_type`. |  |
-| `404` | Challenge not found. | Proof's challenge doesn't match any live challenge, or it already expired. |
+| `400` | Challenge expired. | Challenge exists but passed its 5-minute TTL. |
+| `404` | Challenge not found. | Proof's challenge doesn't match any live challenge. |
 | `409` | `reason="smt_root_mismatch"` | Prover's `smt_root` disagrees with the trusted root — stale client. |
 | `409` | `reason="issuer_modulus_mismatch"` | Prover's issuer modulus doesn't match MOICA-G2/G3 — wrong-issuer proof. |
 | `409` | Duplicate nullifier. | Same `subject_dn_hash` already verified. Response echoes `nullifier`. |
