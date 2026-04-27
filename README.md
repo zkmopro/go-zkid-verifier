@@ -57,6 +57,7 @@ curl -s http://localhost:8080/issuer-cert/status | jq .
 | `POST` | `/link-verify` | Verify a cert-chain + device-sig proof pair. Body limit 2 MB. |
 | `GET`  | `/smt-root/status` | Trusted revocation-root cache snapshot. |
 | `GET`  | `/issuer-cert/status` | Trusted MOICA issuer-cert cache snapshot. |
+| `POST` | `/debug/db/clean` | **Dev only.** Wipes `challenges` + `verifications`. Requires `DEBUG_TOKEN` env var and `Authorization: Bearer <token>` header. Route is unregistered (404) when `DEBUG_TOKEN` is unset. |
 
 ### `POST /link-verify`
 
@@ -114,6 +115,27 @@ The `smt_root`, `issuer_modulus`, and `app_id` blocks are each present whenever 
 | `503` | Trust-anchor provider unavailable. | SMT root or issuer cert not cached — transient; retry. |
 | `500` | FFI crash or other infrastructure failure. |  |
 
+### Debug endpoint (dev only)
+
+`POST /debug/db/clean` resets the verifier's SQLite state by deleting every row from `challenges` and `verifications` in a single transaction. It exists for manual / scripted integration testing against a running file-backed server — unit tests already use in-memory SQLite. The endpoint is **off by default**: the route is only registered when `DEBUG_TOKEN` is set, and even then every request must carry `Authorization: Bearer <DEBUG_TOKEN>` (constant-time compared). There is no gRPC equivalent — the proto surface stays product-only.
+
+```bash
+DEBUG_TOKEN=$(openssl rand -hex 32) make serve
+
+curl -X POST -H "Authorization: Bearer $DEBUG_TOKEN" \
+     http://localhost:8080/debug/db/clean
+# → {"challenges_deleted":3,"verifications_deleted":2}
+```
+
+| Code | Meaning |
+|---|---|
+| `200` | Cleanup succeeded; body is `{"challenges_deleted": N, "verifications_deleted": M}`. |
+| `401` | `Authorization` header missing, not `Bearer`, or token mismatch. |
+| `404` | `DEBUG_TOKEN` is unset on the server, so the route is not registered. |
+| `500` | DB error during cleanup. |
+
+> **Never set `DEBUG_TOKEN` in production.** This endpoint destroys verification history.
+
 ## gRPC API
 
 `proto/zkid/v1/zkid.proto` defines `ZkIDVerifier` with the same verify semantics as HTTP (including `smt_root_mismatch`, `issuer_modulus_mismatch`, and `app_id_mismatch` fail modes). Messages up to 2 MB. Regenerate with `make proto`.
@@ -142,6 +164,7 @@ All via environment variables.
 | `ISSUER_CERT_G3_URL` | `https://moica.nat.gov.tw/repository/Certs/MOICA-G3.cer` | MOICA-G3 source (override for tests) |
 | `ISSUER_CERT_REFRESH_INTERVAL` | `24h` | Issuer-cert refresh cadence |
 | `ISSUER_CERT_FETCH_TIMEOUT` | `10s` | Per-source fetch timeout |
+| `DEBUG_TOKEN` | _(unset)_ | When set, exposes `POST /debug/db/clean`. Requests must carry `Authorization: Bearer <DEBUG_TOKEN>`. Leave unset in production. |
 
 ### Trust anchors
 
