@@ -72,7 +72,7 @@ func TestLinkVerify_SmtRootMismatchReturns409(t *testing.T) {
 		},
 	}
 	svc := linkverify.NewService(fv, &fakeHTTPStore{})
-	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil)
+	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil, "")
 
 	w := postLinkVerify(t, h, LinkVerifyRequest{
 		CertChainType:  "rs2048",
@@ -102,7 +102,7 @@ func TestLinkVerify_ProofInvalidStays200(t *testing.T) {
 		result: &linkverify.Result{Verified: false, Reason: "proof_invalid"},
 	}
 	svc := linkverify.NewService(fv, &fakeHTTPStore{})
-	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil)
+	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil, "")
 
 	w := postLinkVerify(t, h, LinkVerifyRequest{
 		CertChainType:  "rs2048",
@@ -117,7 +117,7 @@ func TestLinkVerify_ProofInvalidStays200(t *testing.T) {
 func TestLinkVerify_SmtRootUnavailableReturns503(t *testing.T) {
 	fv := &fakeVerifier{err: linkverify.ErrSmtRootUnavailable}
 	svc := linkverify.NewService(fv, &fakeHTTPStore{})
-	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil)
+	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil, "")
 
 	w := postLinkVerify(t, h, LinkVerifyRequest{
 		CertChainType:  "rs2048",
@@ -142,7 +142,7 @@ func TestLinkVerify_IssuerModulusMismatchReturns409(t *testing.T) {
 		},
 	}
 	svc := linkverify.NewService(fv, &fakeHTTPStore{})
-	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil)
+	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil, "")
 
 	w := postLinkVerify(t, h, LinkVerifyRequest{
 		CertChainType:  "rs2048",
@@ -167,7 +167,7 @@ func TestLinkVerify_IssuerModulusMismatchReturns409(t *testing.T) {
 func TestLinkVerify_IssuerCertUnavailableReturns503(t *testing.T) {
 	fv := &fakeVerifier{err: linkverify.ErrIssuerCertUnavailable}
 	svc := linkverify.NewService(fv, &fakeHTTPStore{})
-	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil)
+	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil, "")
 
 	w := postLinkVerify(t, h, LinkVerifyRequest{
 		CertChainType:  "rs2048",
@@ -192,7 +192,7 @@ func TestLinkVerify_AppIDMismatchReturns409(t *testing.T) {
 		},
 	}
 	svc := linkverify.NewService(fv, &fakeHTTPStore{})
-	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil)
+	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil, "")
 
 	w := postLinkVerify(t, h, LinkVerifyRequest{
 		CertChainType:  "rs2048",
@@ -232,7 +232,7 @@ func TestLinkVerify_DuplicateNullifier409IncludesNullifier(t *testing.T) {
 		recordErr: store.ErrDuplicateNullifier,
 	}
 	svc := linkverify.NewService(fv, fs)
-	h := NewRouter(svc, fs, nil, nil)
+	h := NewRouter(svc, fs, nil, nil, "")
 
 	w := postLinkVerify(t, h, LinkVerifyRequest{
 		CertChainType:  "rs2048",

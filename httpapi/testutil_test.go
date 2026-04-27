@@ -17,7 +17,7 @@ func setupServer(t *testing.T, ttl time.Duration) (http.Handler, *store.SQLiteSt
 		t.Fatalf("new store: %v", err)
 	}
 	t.Cleanup(func() { s.Close() })
-	return NewRouter(nil, s, nil, nil), s
+	return NewRouter(nil, s, nil, nil, ""), s
 }
 
 func createChallengeViaHTTP(t *testing.T, mux http.Handler) store.Challenge {

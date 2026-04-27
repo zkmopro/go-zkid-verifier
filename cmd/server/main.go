@@ -55,6 +55,8 @@ func main() {
 		appID = "0"
 	}
 
+	debugToken := os.Getenv("DEBUG_TOKEN")
+
 	log.Printf("Checking verifying keys in %s...", keysDir)
 	if err := keymanager.EnsureKeys(keysDir); err != nil {
 		log.Printf("WARNING: key download failed: %v", err)
@@ -101,7 +103,7 @@ func main() {
 		log.Fatalf("gRPC listen on %s: %v", grpcAddr, err)
 	}
 
-	mux := httpapi.NewRouter(service, s, provider, issuerProvider)
+	mux := httpapi.NewRouter(service, s, provider, issuerProvider, debugToken)
 
 	fmt.Printf("=== zkID Verifier Server ===\n")
 	fmt.Printf("HTTP listening on %s\n", httpAddr)
@@ -118,7 +120,11 @@ func main() {
 	fmt.Printf("  GET  /challenge/{id}         - Retrieve a challenge\n")
 	fmt.Printf("  POST /link-verify            - Verify ZK proofs with pk_commit linkage\n")
 	fmt.Printf("  GET  /smt-root/status        - Query trusted SMT root cache\n")
-	fmt.Printf("  GET  /issuer-cert/status     - Query trusted MOICA issuer cert cache\n\n")
+	fmt.Printf("  GET  /issuer-cert/status     - Query trusted MOICA issuer cert cache\n")
+	if debugToken != "" {
+		fmt.Printf("  POST /debug/db/clean         - DEV ONLY: wipe challenges + verifications (DEBUG_TOKEN required)\n")
+	}
+	fmt.Println()
 
 	go func() {
 		grpcServer := grpc.NewServer(
