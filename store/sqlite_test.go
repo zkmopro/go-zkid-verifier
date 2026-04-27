@@ -241,6 +241,55 @@ func TestConcurrentVerifySameNullifier(t *testing.T) {
 	}
 }
 
+func TestCleanDB(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	// Empty store → both counts zero, no error.
+	nc, nv, err := s.CleanDB(ctx)
+	if err != nil {
+		t.Fatalf("clean empty: %v", err)
+	}
+	if nc != 0 || nv != 0 {
+		t.Fatalf("empty clean counts: got (%d, %d), want (0, 0)", nc, nv)
+	}
+
+	// Seed: two challenges, one consumed via VerifyAndRecord.
+	c1, _ := s.CreateChallenge(ctx)
+	c2, _ := s.CreateChallenge(ctx)
+	if err := s.VerifyAndRecord(ctx, "nullifier-clean", c1.ID, nil, "link_rs2048"); err != nil {
+		t.Fatalf("seed verify: %v", err)
+	}
+
+	nc, nv, err = s.CleanDB(ctx)
+	if err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	if nc != 2 {
+		t.Fatalf("challenges deleted: got %d, want 2", nc)
+	}
+	if nv != 1 {
+		t.Fatalf("verifications deleted: got %d, want 1", nv)
+	}
+
+	// Both challenges should now be gone.
+	for _, id := range []string{c1.ID, c2.ID} {
+		got, err := s.GetChallenge(ctx, id)
+		if err != nil {
+			t.Fatalf("get after clean: %v", err)
+		}
+		if got != nil {
+			t.Fatalf("challenge %s still present after clean", id)
+		}
+	}
+
+	// Nullifier slot is free again — re-registering must succeed on a fresh challenge.
+	c3, _ := s.CreateChallenge(ctx)
+	if err := s.VerifyAndRecord(ctx, "nullifier-clean", c3.ID, nil, "link_rs2048"); err != nil {
+		t.Fatalf("verify after clean: %v", err)
+	}
+}
+
 func TestForeignKeyEnforcement(t *testing.T) {
 	s := newTestStore(t)
 	// Non-existent challenge_id should error out. Our challenge-exists check

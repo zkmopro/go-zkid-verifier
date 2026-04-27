@@ -41,6 +41,9 @@ func (s *fakeHTTPStore) GetChallengeByHex(ctx context.Context, hex string) (*sto
 func (s *fakeHTTPStore) VerifyAndRecord(ctx context.Context, nullifier, challengeID string, proof *string, proofType string) error {
 	return s.recordErr
 }
+func (s *fakeHTTPStore) CleanDB(ctx context.Context) (int64, int64, error) {
+	return 0, 0, nil
+}
 
 func postLinkVerify(t *testing.T, h http.Handler, body LinkVerifyRequest) *httptest.ResponseRecorder {
 	t.Helper()
