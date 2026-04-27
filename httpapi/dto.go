@@ -14,6 +14,7 @@ type VerifySuccessResponse struct {
 	ParsedInputs  *verifier.ParsedInputs           `json:"parsed_inputs,omitempty"`
 	SmtRoot       *linkverify.SmtRootOutcome       `json:"smt_root,omitempty"`
 	IssuerModulus *linkverify.IssuerModulusOutcome `json:"issuer_modulus,omitempty"`
+	AppID         *linkverify.AppIDOutcome         `json:"app_id,omitempty"`
 }
 
 type VerifyFailResponse struct {
@@ -21,6 +22,7 @@ type VerifyFailResponse struct {
 	Reason        string                           `json:"reason,omitempty"`
 	SmtRoot       *linkverify.SmtRootOutcome       `json:"smt_root,omitempty"`
 	IssuerModulus *linkverify.IssuerModulusOutcome `json:"issuer_modulus,omitempty"`
+	AppID         *linkverify.AppIDOutcome         `json:"app_id,omitempty"`
 }
 
 type LinkVerifyRequest struct {
