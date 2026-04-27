@@ -1,5 +1,6 @@
 target/
 .DS_Store
+.claude/
 zkid-server
 zkid-verifier
 zk-verifier

@@ -75,10 +75,10 @@ func newService(v ProofVerifier, s store.Store) *Service {
 	return &Service{verifier: v, store: s}
 }
 
-func successParsed(challenge, subjectDN string) *verifier.ParsedInputs {
+func successParsed(challenge, nullifier string) *verifier.ParsedInputs {
 	return &verifier.ParsedInputs{
-		Challenge:     challenge,
-		SubjectDNHash: subjectDN,
+		Challenge: challenge,
+		Nullifier: nullifier,
 	}
 }
 

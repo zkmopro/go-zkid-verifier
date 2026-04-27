@@ -9,61 +9,67 @@ import (
 
 // CertChainRS2048PublicInputs holds the named public outputs from the cert-chain RS2048 circuit.
 //
-// Layout (20 field elements):
+// Layout (21 field elements):
 //
-//	0:     subject_dn_hash
+//	0:     nullifier
 //	1:     pk_commit
 //	2–18:  issuer_rsa_modulus  (17 limbs)
 //	19:    smt_root
+//	20:    app_id
 type CertChainRS2048PublicInputs struct {
-	SubjectDNHash    string
+	Nullifier        string
 	PkCommit         string
 	IssuerRSAModulus []string // 17 limbs
 	SmtRoot          string
+	AppID            string
 }
 
 // ParseCertChainRS2048 parses the raw CertChain signal slice from PublicSignals
-// into named fields. Returns an error if the slice has fewer than 20 elements.
+// into named fields. Returns an error if the slice has fewer than 21 elements.
 func ParseCertChainRS2048(signals []string) (*CertChainRS2048PublicInputs, error) {
-	const required = 20
-	if len(signals) < required {
-		return nil, fmt.Errorf("cert_chain RS2048 requires %d public inputs, got %d", required, len(signals))
+	const required = 21
+	if len(signals) != required {
+		return nil, fmt.Errorf("cert_chain RS2048 requires exactly %d public inputs, got %d", required, len(signals))
 	}
 	return &CertChainRS2048PublicInputs{
-		SubjectDNHash:    signals[0],
+		Nullifier:        signals[0],
 		PkCommit:         signals[1],
 		IssuerRSAModulus: signals[2:19],
 		SmtRoot:          signals[19],
+		AppID:            signals[20],
 	}, nil
 }
 
 // CertChainRS4096PublicInputs holds the named public outputs from the cert-chain RS4096 circuit.
 //
-// Layout (37 field elements):
+// Layout (38 field elements):
 //
-//	0:     subject_dn_hash
+//	0:     nullifier
 //	1:     pk_commit
 //	2–35:  issuer_rsa_modulus  (34 limbs)
 //	36:    smt_root
+//	37:    app_id
 type CertChainRS4096PublicInputs struct {
-	SubjectDNHash    string
+	Nullifier        string
 	PkCommit         string
 	IssuerRSAModulus []string // 34 limbs
 	SmtRoot          string
+	AppID            string
 }
 
 // ParseCertChainRS4096 parses the raw CertChain signal slice from PublicSignals
-// into named fields. Returns an error if the slice has fewer than 37 elements.
+// into named fields. Returns an error if the slice has fewer than 38 elements.
 func ParseCertChainRS4096(signals []string) (*CertChainRS4096PublicInputs, error) {
-	const required = 37
-	if len(signals) < required {
-		return nil, fmt.Errorf("cert_chain RS4096 requires %d public inputs, got %d", required, len(signals))
+	const required = 38
+	if len(signals) != required {
+		return nil, fmt.Errorf("cert_chain RS4096 requires exactly %d public inputs, got %d", required, len(signals))
 	}
 	return &CertChainRS4096PublicInputs{
-		SubjectDNHash:    signals[0],
+		Nullifier:        signals[0],
 		PkCommit:         signals[1],
 		IssuerRSAModulus: signals[2:36],
 		SmtRoot:          signals[36],
+		AppID:            signals[37],
 	}, nil
 }
 
@@ -145,9 +151,10 @@ func UnpackBytes(packedHex []string) ([]byte, error) {
 type ParsedInputs struct {
 	Challenge        string   `json:"challenge"`
 	PkCommit         string   `json:"pk_commit"`
-	SubjectDNHash    string   `json:"subject_dn_hash"`
+	Nullifier        string   `json:"nullifier"`
 	IssuerRSAModulus []string `json:"issuer_rsa_modulus"`
 	SmtRoot          string   `json:"smt_root"`
+	AppID            string   `json:"app_id"`
 }
 
 // ParsePublicInputsRS2048 parses raw PublicSignals from an RS2048 link-verify
@@ -168,9 +175,10 @@ func ParsePublicInputsRS2048(certChain, deviceSig []string) (*ParsedInputs, erro
 	return &ParsedInputs{
 		Challenge:        challenge,
 		PkCommit:         cc.PkCommit,
-		SubjectDNHash:    cc.SubjectDNHash,
+		Nullifier:        cc.Nullifier,
 		IssuerRSAModulus: cc.IssuerRSAModulus,
 		SmtRoot:          cc.SmtRoot,
+		AppID:            cc.AppID,
 	}, nil
 }
 
@@ -206,8 +214,9 @@ func ParsePublicInputsRS4096(certChain, deviceSig []string) (*ParsedInputs, erro
 	return &ParsedInputs{
 		Challenge:        challenge,
 		PkCommit:         cc.PkCommit,
-		SubjectDNHash:    cc.SubjectDNHash,
+		Nullifier:        cc.Nullifier,
 		IssuerRSAModulus: cc.IssuerRSAModulus,
 		SmtRoot:          cc.SmtRoot,
+		AppID:            cc.AppID,
 	}, nil
 }

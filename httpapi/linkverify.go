@@ -61,8 +61,10 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 		}
 		if !result.Verified {
 			status := http.StatusOK
-			if result.Reason == linkverify.ReasonSmtRootMismatch ||
-				result.Reason == linkverify.ReasonIssuerModulusMismatch {
+			switch result.Reason {
+			case linkverify.ReasonSmtRootMismatch,
+				linkverify.ReasonIssuerModulusMismatch,
+				linkverify.ReasonAppIDMismatch:
 				status = http.StatusConflict
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -72,12 +74,13 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 				Reason:        result.Reason,
 				SmtRoot:       result.SmtRoot,
 				IssuerModulus: result.IssuerModulus,
+				AppID:         result.AppID,
 			})
 			return
 		}
 		parsed := result.Parsed
-		log.Printf("link-verify parsed inputs: challenge=%s pk_commit=%s subject_dn_hash=%s smt_root=%s",
-			parsed.Challenge, parsed.PkCommit, parsed.SubjectDNHash, parsed.SmtRoot)
+		log.Printf("link-verify parsed inputs: challenge=%s pk_commit=%s nullifier=%s smt_root=%s app_id=%s",
+			parsed.Challenge, parsed.PkCommit, parsed.Nullifier, parsed.SmtRoot, parsed.AppID)
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(VerifySuccessResponse{
@@ -89,6 +92,7 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 			ParsedInputs:  result.Parsed,
 			SmtRoot:       result.SmtRoot,
 			IssuerModulus: result.IssuerModulus,
+			AppID:         result.AppID,
 		})
 	}
 }

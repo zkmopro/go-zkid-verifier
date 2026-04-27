@@ -91,6 +91,7 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 			Reason:        result.Reason,
 			SmtRoot:       smtRootOutcomeToProto(result.SmtRoot),
 			IssuerModulus: issuerModulusOutcomeToProto(result.IssuerModulus),
+			AppId:         appIDOutcomeToProto(result.AppID),
 		}, nil
 	}
 
@@ -101,6 +102,7 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 		Persisted:     true,
 		SmtRoot:       smtRootOutcomeToProto(result.SmtRoot),
 		IssuerModulus: issuerModulusOutcomeToProto(result.IssuerModulus),
+		AppId:         appIDOutcomeToProto(result.AppID),
 	}, nil
 }
 
@@ -135,6 +137,17 @@ func issuerModulusOutcomeToProto(o *linkverify.IssuerModulusOutcome) *pb.IssuerM
 		out.TrustedAt = o.TrustedAt.Format(time.RFC3339)
 	}
 	return out
+}
+
+func appIDOutcomeToProto(o *linkverify.AppIDOutcome) *pb.AppIDOutcome {
+	if o == nil {
+		return nil
+	}
+	return &pb.AppIDOutcome{
+		Match:    o.Match,
+		Expected: o.Expected,
+		Observed: o.Observed,
+	}
 }
 
 func mapServiceError(err error, nullifier string) error {

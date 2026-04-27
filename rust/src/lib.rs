@@ -113,7 +113,7 @@ pub extern "C" fn zk_link_verify(
             path_config.key_path(DeviceSigRsa2048::VERIFYING_KEY),
         );
 
-        // Bounds check: cert-chain must have >= 2 public values (subject_dn_hash, pk_commit, ...)
+        // Bounds check: cert-chain must have >= 2 public values (nullifier, pk_commit, ...)
         // device-sig must have >= 1 public value (pk_commit, packed_tbs...)
         if cc_public_values.len() < 2 {
             panic!(
@@ -125,7 +125,7 @@ pub extern "C" fn zk_link_verify(
             panic!("device-sig public values is empty, expected >= 1");
         }
 
-        // pk_commit is at index 1 for cert-chain (after subject_dn_hash)
+        // pk_commit is at index 1 for cert-chain (after nullifier)
         // pk_commit is at index 0 for device-sig (first output)
         let pk_commit_a = &cc_public_values[1];
         let pk_commit_b = &ds_public_values[0];

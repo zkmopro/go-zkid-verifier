@@ -2,6 +2,8 @@ package linkverify
 
 import (
 	"fmt"
+	"math/big"
+	"strings"
 	"time"
 
 	"github.com/zkmopro/go-zkid-verifier/issuercert"
@@ -11,20 +13,22 @@ import (
 
 
 type Verifier struct {
-	KeysDir    string
-	SmtRoot    *smtroot.Provider
-	IssuerCert *issuercert.Provider
-	Logger     smtroot.Logger
+	KeysDir       string
+	SmtRoot       *smtroot.Provider
+	IssuerCert    *issuercert.Provider
+	ExpectedAppID string
+	Logger        smtroot.Logger
 }
 
 // Result holds everything the handler needs to respond.
 type Result struct {
-	Verified       bool
-	Reason         string
-	Signals        *PublicSignals
-	Parsed         *verifier.ParsedInputs
-	SmtRoot        *SmtRootOutcome
-	IssuerModulus  *IssuerModulusOutcome
+	Verified      bool
+	Reason        string
+	Signals       *PublicSignals
+	Parsed        *verifier.ParsedInputs
+	SmtRoot       *SmtRootOutcome
+	IssuerModulus *IssuerModulusOutcome
+	AppID         *AppIDOutcome
 }
 
 // SmtRootOutcome is the outcome of the proof-vs-trusted-root comparison.
@@ -45,6 +49,12 @@ type IssuerModulusOutcome struct {
 	ExpectedSHA256 string           `json:"expected_sha256"`
 	TrustSource    string           `json:"trust_source,omitempty"`
 	TrustedAt      time.Time        `json:"trusted_at,omitempty"`
+}
+
+type AppIDOutcome struct {
+	Match    bool   `json:"match"`
+	Expected string `json:"expected"`
+	Observed string `json:"observed"`
 }
 
 func (v *Verifier) Verify(req Request) (*Result, error) {
@@ -88,6 +98,15 @@ func (v *Verifier) Verify(req Request) (*Result, error) {
 		if !outcome.Match && res.Reason == "" {
 			res.Verified = false
 			res.Reason = ReasonIssuerModulusMismatch
+		}
+	}
+
+	if v.ExpectedAppID != "" {
+		outcome := checkAppID(parsed, v.ExpectedAppID, v.Logger)
+		res.AppID = outcome
+		if !outcome.Match && res.Reason == "" {
+			res.Verified = false
+			res.Reason = ReasonAppIDMismatch
 		}
 	}
 	return res, nil
@@ -158,6 +177,55 @@ func checkIssuerModulus(pt ProofType, parsed *verifier.ParsedInputs, provider *i
 		"cache_age_s", meta.CacheAgeSeconds,
 	)
 	return outcome, nil
+}
+
+func checkAppID(parsed *verifier.ParsedInputs, expected string, logger smtroot.Logger) *AppIDOutcome {
+	outcome := &AppIDOutcome{
+		Match:    appIDsEqual(parsed.AppID, expected),
+		Expected: expected,
+		Observed: parsed.AppID,
+	}
+	level, event := "info", "app_id_check"
+	if !outcome.Match {
+		level, event = "warn", "app_id_mismatch"
+	}
+	logger.Event(level, event,
+		"expected", outcome.Expected,
+		"observed", outcome.Observed,
+		"match", outcome.Match,
+	)
+	return outcome
+}
+
+// appIDsEqual compares two app_id strings as field-element values, normalizing
+// across the prover's wire format ("0x" + 64-char zero-padded big-endian hex,
+// e.g. "0x000…000" for 0) and operator-supplied env values ("0", "42", "0x2a").
+// Both forms parse to the same big.Int; mismatches return false rather than
+// erroring so a malformed value naturally fails the check.
+func appIDsEqual(observed, expected string) bool {
+	o, ok := parseAppID(observed)
+	if !ok {
+		return false
+	}
+	e, ok := parseAppID(expected)
+	if !ok {
+		return false
+	}
+	return o.Cmp(e) == 0
+}
+
+func parseAppID(s string) (*big.Int, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, false
+	}
+	base := 10
+	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
+		s = s[2:]
+		base = 16
+	}
+	n, ok := new(big.Int).SetString(s, base)
+	return n, ok
 }
 
 // RS2048 → G2, RS4096 → G3.

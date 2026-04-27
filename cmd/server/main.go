@@ -50,6 +50,11 @@ func main() {
 		corsOrigin = "*"
 	}
 
+	appID, ok := os.LookupEnv("APP_ID")
+	if !ok {
+		appID = "0"
+	}
+
 	log.Printf("Checking verifying keys in %s...", keysDir)
 	if err := keymanager.EnsureKeys(keysDir); err != nil {
 		log.Printf("WARNING: key download failed: %v", err)
@@ -74,10 +79,11 @@ func main() {
 		log.Fatalf("issuer cert provider: %v", err)
 	}
 	verifier := &linkverify.Verifier{
-		KeysDir:    keysDir,
-		SmtRoot:    provider,
-		IssuerCert: issuerProvider,
-		Logger:     smtroot.DefaultLogger{},
+		KeysDir:       keysDir,
+		SmtRoot:       provider,
+		IssuerCert:    issuerProvider,
+		ExpectedAppID: appID,
+		Logger:        smtroot.DefaultLogger{},
 	}
 	if provider != nil {
 		provider.Start(ctx)
@@ -102,6 +108,11 @@ func main() {
 	fmt.Printf("gRPC listening on %s\n", grpcAddr)
 	fmt.Printf("Database: %s\n", dbPath)
 	fmt.Printf("Keys directory: %s\n", keysDir)
+	appIDDisplay := fmt.Sprintf("%q", appID)
+	if appID == "" {
+		appIDDisplay = "disabled"
+	}
+	fmt.Printf("APP_ID enforcement: %s\n", appIDDisplay)
 	fmt.Printf("REST Endpoints:\n")
 	fmt.Printf("  POST /challenge              - Generate a new challenge\n")
 	fmt.Printf("  GET  /challenge/{id}         - Retrieve a challenge\n")

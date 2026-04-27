@@ -176,10 +176,48 @@ func TestLinkVerify_IssuerCertUnavailableReturns503(t *testing.T) {
 	}
 }
 
+func TestLinkVerify_AppIDMismatchReturns409(t *testing.T) {
+	fv := &fakeVerifier{
+		result: &linkverify.Result{
+			Verified: false,
+			Reason:   linkverify.ReasonAppIDMismatch,
+			AppID: &linkverify.AppIDOutcome{
+				Match:    false,
+				Expected: "42",
+				Observed: "0",
+			},
+		},
+	}
+	svc := linkverify.NewService(fv, &fakeHTTPStore{})
+	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil)
+
+	w := postLinkVerify(t, h, LinkVerifyRequest{
+		CertChainType:  "rs2048",
+		CertChainProof: []byte("x"),
+		DeviceSigProof: []byte("x"),
+	})
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status: got %d, want %d", w.Code, http.StatusConflict)
+	}
+	var resp VerifyFailResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v body=%s", err, w.Body.String())
+	}
+	if resp.Verified {
+		t.Error("Verified: got true, want false")
+	}
+	if resp.Reason != linkverify.ReasonAppIDMismatch {
+		t.Errorf("Reason: got %q, want %q", resp.Reason, linkverify.ReasonAppIDMismatch)
+	}
+	if resp.AppID == nil || resp.AppID.Match || resp.AppID.Expected != "42" || resp.AppID.Observed != "0" {
+		t.Errorf("AppID outcome: got %+v", resp.AppID)
+	}
+}
+
 func TestLinkVerify_DuplicateNullifier409IncludesNullifier(t *testing.T) {
 	parsed := &verifier.ParsedInputs{
-		Challenge:     "hex1",
-		SubjectDNHash: "null-123",
+		Challenge: "hex1",
+		Nullifier: "null-123",
 	}
 	fv := &fakeVerifier{
 		result: &linkverify.Result{Verified: true, Parsed: parsed},

@@ -51,7 +51,7 @@ func (s *Service) VerifyAndRecordByProof(ctx context.Context, req Request) (*Pro
 		return nil, store.ErrChallengeExpired
 	}
 
-	return s.finalize(ctx, c.ID, r.Parsed.SubjectDNHash, req.ProofType, r)
+	return s.finalize(ctx, c.ID, r.Parsed.Nullifier, req.ProofType, r)
 }
 
 // VerifyAndRecordByID verifies and records using caller-provided challengeID/nullifier.
