@@ -230,6 +230,33 @@ func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challengeI
 	return tx.Commit()
 }
 
+// CleanDB wipes all rows from verifications and challenges in a single
+// transaction. Verifications are deleted first to satisfy the FK from
+// verifications.challenge_id → challenges.id. Schema is preserved.
+func (s *SQLiteStore) CleanDB(ctx context.Context) (int64, int64, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	rv, err := tx.ExecContext(ctx, `DELETE FROM verifications`)
+	if err != nil {
+		return 0, 0, fmt.Errorf("delete verifications: %w", err)
+	}
+	rc, err := tx.ExecContext(ctx, `DELETE FROM challenges`)
+	if err != nil {
+		return 0, 0, fmt.Errorf("delete challenges: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, 0, fmt.Errorf("commit: %w", err)
+	}
+
+	nv, _ := rv.RowsAffected()
+	nc, _ := rc.RowsAffected()
+	return nc, nv, nil
+}
+
 // parseTime parses a time string from SQLite, always returning UTC.
 // Handles both RFC3339 and SQLite's default datetime format.
 func parseTime(s string) (time.Time, error) {

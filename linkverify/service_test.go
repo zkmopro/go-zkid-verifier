@@ -55,6 +55,10 @@ func (f *fakeStore) VerifyAndRecord(ctx context.Context, nullifier, challengeID 
 	return f.recordErr
 }
 
+func (f *fakeStore) CleanDB(ctx context.Context) (int64, int64, error) {
+	return 0, 0, nil
+}
+
 type fakeVerifier struct {
 	result    *Result
 	err       error

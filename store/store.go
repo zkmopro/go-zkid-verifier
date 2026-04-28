@@ -56,4 +56,10 @@ type Store interface {
 	// Returns sentinel errors: ErrChallengeNotFound, ErrChallengeExpired,
 	// ErrChallengeConsumed, ErrDuplicateNullifier.
 	VerifyAndRecord(ctx context.Context, nullifier, challengeID string, proof *string, proofType string) error
+
+	// CleanDB wipes all rows from challenges and verifications in a single
+	// transaction. Schema is preserved. Returns the number of rows deleted from
+	// each table. Intended for dev/test use only — gate access at the transport
+	// layer (e.g. behind a debug token).
+	CleanDB(ctx context.Context) (challenges, verifications int64, err error)
 }
