@@ -119,12 +119,35 @@ The `smt_root`, `issuer_modulus`, and `app_id` blocks are each present whenever 
 
 `POST /debug/db/clean` resets the verifier's SQLite state by deleting every row from `challenges` and `verifications` in a single transaction. It exists for manual / scripted integration testing against a running file-backed server — unit tests already use in-memory SQLite. The endpoint is **off by default**: the route is only registered when `DEBUG_TOKEN` is set, and even then every request must carry `Authorization: Bearer <DEBUG_TOKEN>` (constant-time compared). There is no gRPC equivalent — the proto surface stays product-only.
 
+**Option A — `.env` file (recommended for local dev):**
+
+```bash
+# Generate a token and write it to .env
+echo "DEBUG_TOKEN=$(openssl rand -hex 32)" >> .env
+
+make serve   # godotenv loads .env automatically on startup
+
+curl -X POST \
+     -H "Authorization: Bearer $DEBUG_TOKEN" \
+     http://localhost:8080/debug/db/clean
+# → {"challenges_deleted":3,"verifications_deleted":2}
+```
+
+**Option B — inline environment variable:**
+
 ```bash
 DEBUG_TOKEN=$(openssl rand -hex 32) make serve
 
 curl -X POST -H "Authorization: Bearer $DEBUG_TOKEN" \
      http://localhost:8080/debug/db/clean
 # → {"challenges_deleted":3,"verifications_deleted":2}
+```
+
+Copy `.env.example` to `.env` to get started:
+
+```bash
+cp .env.example .env
+# then fill in DEBUG_TOKEN (and any other overrides you need)
 ```
 
 | Code | Meaning |

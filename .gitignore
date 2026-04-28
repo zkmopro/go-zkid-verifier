@@ -8,3 +8,4 @@ keys/
 lib/
 /server
 *.db
+.env
