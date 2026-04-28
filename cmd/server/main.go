@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/zkmopro/go-zkid-verifier/challenge"
 	zkgrpc "github.com/zkmopro/go-zkid-verifier/grpc"
 	"github.com/zkmopro/go-zkid-verifier/httpapi"
@@ -24,6 +25,8 @@ import (
 )
 
 func main() {
+	_ = godotenv.Load()
+
 	httpAddr := ":8080"
 	if port := os.Getenv("PORT"); port != "" {
 		httpAddr = ":" + port
