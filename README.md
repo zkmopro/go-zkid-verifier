@@ -61,6 +61,33 @@ curl -s http://localhost:8080/issuer-cert/status | jq .
 | `GET`  | `/issuer-cert/status` | Trusted MOICA issuer-cert cache snapshot. |
 | `POST` | `/debug/db/clean` | **Dev only.** Wipes `challenges` + `verifications`. Requires `DEBUG_TOKEN` env var and `Authorization: Bearer <token>` header. Route is unregistered (404) when `DEBUG_TOKEN` is unset. |
 
+### `POST /challenge`
+
+No request body — call as a bare `POST`. Success body (200):
+
+```json
+{
+  "challenge_id": "<32-char hex>",
+  "app_id": "<62-char hex>",
+  "expires_at": "2026-04-29T12:34:56Z"
+}
+```
+
+`challenge_id` is a fresh 16-byte nonce (32 hex chars) with a 5-minute TTL. `app_id` echoes the server's configured `APP_ID` env so the prover knows which bytes to sign.
+
+### `GET /challenge/{id}`
+
+Re-fetches a still-live challenge by ID. Response shape is identical to `POST /challenge`. Useful for clients that want to confirm a challenge is still in TTL before kicking off proof generation.
+
+### `/challenge` response codes
+
+| Code | Reason / meaning | Notes |
+|---|---|---|
+| `200` | Success — body is `{challenge_id, app_id, expires_at}`. | Both `POST /challenge` and `GET /challenge/{id}`. |
+| `400` | Challenge expired. | `GET /challenge/{id}` only — challenge exists but passed its 5-minute TTL. |
+| `404` | Challenge not found. | `GET /challenge/{id}` only — no live challenge with that ID. |
+| `500` | Store error. | SQLite read/write failed during create or lookup. |
+
 ### `POST /link-verify`
 
 Request — `challenge_id` is whatever `/challenge` returned; the nullifier is derived server-side from the device_sig proof:
