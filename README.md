@@ -7,7 +7,9 @@ Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plu
 1. The FFI accepts both proofs and their `pk_commit` linkage holds.
 2. The `smt_root` public input matches the current revocation-list root for the issuer ([moica-revocation-smt](https://github.com/moven0831/moica-revocation-smt)).
 3. The `issuer_rsa_modulus` public input matches the RSA modulus of the published MOICA-G2 (RS2048) or MOICA-G3 (RS4096) certificate — i.e. the proof was actually signed by MOICA, not an impostor.
-4. The `app_id` public input matches the verifier's configured `APP_ID` env value, binding the cert-chain `nullifier` to a specific application.
+4. The `app_id` reconstructed from device_sig public values matches the application's stable `APP_ID` env value (constant-time compare). The prover signs `APP_ID`'s 31 raw bytes; the device_sig circuit exposes them as 31 public field elements, and the signature itself derives the per-card nullifier — so the verifier can confirm both "this proof was minted for this application" and "this card has authenticated here before" in one shot.
+
+`APP_ID` is application-scoped (one stable 31-byte value per relying party), set via env at server startup. `challenge_id` is per-session — a fresh nonce returned by `/challenge` and submitted with `/link-verify`, ensuring each authentication can only be consumed once.
 
 ## Quickstart
 
@@ -52,7 +54,7 @@ curl -s http://localhost:8080/issuer-cert/status | jq .
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/challenge` | Issue a 16-byte challenge. Returns `{challenge_id, challenge_bytes, expires_at}`, TTL 5 min. |
+| `POST` | `/challenge` | Issue a fresh `challenge_id`. Returns `{challenge_id, app_id, expires_at}` where `app_id` is the server's configured 62-char hex value. TTL 5 min. The prover signs `app_id`; the resulting signature derives the cardholder-bound nullifier inside the device-sig circuit. |
 | `GET`  | `/challenge/{id}` | Fetch a challenge by ID. |
 | `POST` | `/link-verify` | Verify a cert-chain + device-sig proof pair. Body limit 2 MB. |
 | `GET`  | `/smt-root/status` | Trusted revocation-root cache snapshot. |
@@ -61,10 +63,11 @@ curl -s http://localhost:8080/issuer-cert/status | jq .
 
 ### `POST /link-verify`
 
-Request — the challenge and nullifier are derived from the proof's public signals and are **not** in the request body:
+Request — `challenge_id` is whatever `/challenge` returned; the nullifier is derived server-side from the device_sig proof:
 
 ```json
 {
+  "challenge_id": "<hex from /challenge>",
   "cert_chain_type": "rs2048",
   "cert_chain_proof": "<base64>",
   "device_sig_proof": "<base64>"
@@ -83,16 +86,15 @@ Success body (200):
   "persisted": true,
   "public_signals": { "cert_chain": ["..."], "device_sig": ["..."] },
   "parsed_inputs": {
-    "challenge": "...",
     "pk_commit": "...",
     "nullifier": "...",
+    "app_id": "<62-char hex>",
     "issuer_rsa_modulus": ["...", "..."],
-    "smt_root": "0x...",
-    "app_id": "0"
+    "smt_root": "0x..."
   },
   "smt_root":       { "issuer": "g2", "match": true, "expected": "0x…", "observed": "0x…", "trust_source": "onchain",  "trusted_at": "…" },
   "issuer_modulus": { "issuer": "g2", "match": true, "expected_sha256": "0xc4c4…", "trust_source": "embedded", "trusted_at": "…" },
-  "app_id":         { "match": true, "expected": "0", "observed": "0" }
+  "app_id":         { "match": true, "expected": "<APP_ID env hex>", "observed": "<proof hex>" }
 }
 ```
 
@@ -106,10 +108,10 @@ The `smt_root`, `issuer_modulus`, and `app_id` blocks are each present whenever 
 | `200` | `verified=false, reason="proof_invalid"` — FFI rejected the proof. | Record **not** persisted, challenge **not** consumed. |
 | `400` | Request body malformed or missing `cert_chain_proof` / `device_sig_proof` / valid `cert_chain_type`. |  |
 | `400` | Challenge expired. | Challenge exists but passed its 5-minute TTL. |
-| `404` | Challenge not found. | Proof's challenge doesn't match any live challenge. |
+| `404` | Challenge not found. | `challenge_id` doesn't match any live challenge. |
 | `409` | `reason="smt_root_mismatch"` | Prover's `smt_root` disagrees with the trusted root — stale client. |
 | `409` | `reason="issuer_modulus_mismatch"` | Prover's issuer modulus doesn't match MOICA-G2/G3 — wrong-issuer proof. |
-| `409` | `reason="app_id_mismatch"` | Prover's `app_id` doesn't match the verifier's `APP_ID` — proof was minted for a different application. |
+| `409` | `reason="app_id_mismatch"` | The proof's `app_id` doesn't match the server's configured `APP_ID` — proof was minted for a different application. |
 | `409` | Duplicate nullifier. | Same `nullifier` already verified. Response echoes `nullifier`. |
 | `410` | Challenge already consumed. |  |
 | `503` | Trust-anchor provider unavailable. | SMT root or issuer cert not cached — transient; retry. |
@@ -174,7 +176,7 @@ All via environment variables.
 | `DB_PATH` | `./zkid.db` | SQLite database path |
 | `KEYS_DIR` | `./keys` | Verifying-key directory (auto-downloaded) |
 | `CORS_ORIGIN` | `*` | `Access-Control-Allow-Origin` |
-| `APP_ID` | `0` | Expected `app_id` public input. Default `0` matches the zkID web client's `VITE_APP_ID`. Empty string disables the check. |
+| `APP_ID` | _(required)_ | 62-char lowercase hex of the application's stable 31-byte app_id. The prover signs these bytes; the verifier hard-fails on mismatch. Generate with `openssl rand -hex 31`. |
 | `SMT_ROOT_ENFORCE` | `strict` | `strict` = hard-fail on mismatch; `disabled` = skip (dev only) |
 | `SMT_ROOT_RPC_URL` | `https://sepolia-rollup.arbitrum.io/rpc` | Arbitrum Sepolia JSON-RPC |
 | `SMT_ROOT_CONTRACT` | `0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA` | `SMTRootStorage` address |
@@ -222,7 +224,7 @@ cmd/server          REST + gRPC server entrypoint
 cmd/verifier        Link-verify CLI (FFI smoke test)
 httpapi/            HTTP transport (router, handlers, DTOs, error mapping)
 grpc/               gRPC adapter over linkverify.Service
-linkverify/         Orchestrator: FFI → parse → SMT check → issuer-modulus check → app_id check → record
+linkverify/         Orchestrator: challenge lookup → FFI → parse → SMT check → issuer-modulus check → app_id check → record
 verifier/           CGO FFI + public-signals parser
 smtroot/            Trusted revocation-root cache (onchain + GitHub fallback)
 issuercert/         Trusted MOICA issuer-cert cache (embedded + HTTPS, GRCA-chained)
@@ -243,16 +245,14 @@ v := &linkverify.Verifier{
     KeysDir:       keysDir,
     SmtRoot:       smtProvider,    // nil disables SMT check (dev/tests only)
     IssuerCert:    issuerProvider, // nil disables issuer-modulus check (dev/tests only)
-    ExpectedAppID: "0",            // empty string disables app_id check
+    ExpectedAppID: appID,          // 62-char hex; empty disables app_id check (dev/tests only)
     Logger:        smtroot.DefaultLogger{},
 }
 service := linkverify.NewService(v, sqliteStore)
 
-// HTTP path — challenge and nullifier derived from the proof:
-res, err := service.VerifyAndRecordByProof(ctx, linkverify.Request{...})
-
-// gRPC path — caller supplies challenge ID and nullifier:
-res, err := service.VerifyAndRecordByID(ctx, challengeID, nullifier, linkverify.Request{...})
+// Both transports route through the same call. Caller supplies challenge_id;
+// nullifier is extracted server-side from the device_sig proof.
+res, err := service.VerifyAndRecord(ctx, challengeID, linkverify.Request{...})
 ```
 
 Sentinel errors bubble unwrapped so each transport picks its own status code: `store.ErrChallengeNotFound`, `ErrChallengeExpired`, `ErrChallengeConsumed`, `ErrDuplicateNullifier`, `linkverify.ErrSmtRootUnavailable`, `linkverify.ErrIssuerCertUnavailable`.
