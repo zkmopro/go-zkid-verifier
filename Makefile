@@ -32,6 +32,9 @@ else
 endif
 	mkdir -p $(LIB_DIR)
 	cp $(RUST_OUT_DIR)/libzk_verifier.a $(LIB_DIR)/
+	find $(RUST_OUT_DIR)/build -name 'libwitnesscalc_device_sig_rs2048.a' -exec cp {} $(LIB_DIR)/ \;
+	find $(RUST_OUT_DIR)/build -name 'libfr.a' -exec cp {} $(LIB_DIR)/ \;
+	find $(RUST_OUT_DIR)/build -name 'libgmp.a' -exec cp {} $(LIB_DIR)/ \;
 
 build-server: $(RUST_LIB)
 	go build -o zkid-server ./cmd/server
