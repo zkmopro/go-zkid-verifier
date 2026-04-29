@@ -8,18 +8,17 @@ import (
 	"time"
 
 	"github.com/zkmopro/go-zkid-verifier/challenge"
-	"github.com/zkmopro/go-zkid-verifier/store"
 )
 
 func TestCreateChallenge(t *testing.T) {
 	mux, _ := setupServer(t, challenge.DefaultTTL)
 	c := createChallengeViaHTTP(t, mux)
 
-	if c.ID == "" {
+	if c.ChallengeID == "" {
 		t.Fatal("challenge_id is empty")
 	}
-	if c.BytesHex == "" || len(c.BytesHex) != 31 {
-		t.Fatalf("challenge_bytes should be 31 hex chars, got %d: %s", len(c.BytesHex), c.BytesHex)
+	if c.AppID != testAppID {
+		t.Fatalf("app_id: got %q, want %q", c.AppID, testAppID)
 	}
 	if c.ExpiresAt.IsZero() {
 		t.Fatal("expires_at is zero")
@@ -30,7 +29,7 @@ func TestGetChallenge(t *testing.T) {
 	mux, _ := setupServer(t, challenge.DefaultTTL)
 	created := createChallengeViaHTTP(t, mux)
 
-	req := httptest.NewRequest("GET", "/challenge/"+created.ID, nil)
+	req := httptest.NewRequest("GET", "/challenge/"+created.ChallengeID, nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -38,13 +37,13 @@ func TestGetChallenge(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var fetched store.Challenge
+	var fetched ChallengeResponse
 	json.NewDecoder(w.Body).Decode(&fetched)
-	if fetched.ID != created.ID {
-		t.Fatalf("expected ID %s, got %s", created.ID, fetched.ID)
+	if fetched.ChallengeID != created.ChallengeID {
+		t.Fatalf("expected ID %s, got %s", created.ChallengeID, fetched.ChallengeID)
 	}
-	if fetched.BytesHex != created.BytesHex {
-		t.Fatal("challenge_bytes mismatch")
+	if fetched.AppID != created.AppID {
+		t.Fatal("app_id mismatch")
 	}
 }
 
@@ -65,7 +64,7 @@ func TestGetChallengeExpired(t *testing.T) {
 	created := createChallengeViaHTTP(t, mux)
 	time.Sleep(5 * time.Millisecond)
 
-	req := httptest.NewRequest("GET", "/challenge/"+created.ID, nil)
+	req := httptest.NewRequest("GET", "/challenge/"+created.ChallengeID, nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 

@@ -20,7 +20,7 @@ func setupDebugServer(t *testing.T, token string) (http.Handler, *store.SQLiteSt
 		t.Fatalf("new store: %v", err)
 	}
 	t.Cleanup(func() { s.Close() })
-	return NewRouter(nil, s, nil, nil, token), s
+	return NewRouter(nil, s, nil, nil, testAppID, token), s
 }
 
 func seedOne(t *testing.T, s *store.SQLiteStore) {

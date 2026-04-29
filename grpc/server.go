@@ -18,10 +18,11 @@ type Server struct {
 	pb.UnimplementedZkIDVerifierServer
 	service *linkverify.Service
 	store   store.Store
+	appID   string
 }
 
-func NewServer(service *linkverify.Service, s store.Store) *Server {
-	return &Server{service: service, store: s}
+func NewServer(service *linkverify.Service, s store.Store, appID string) *Server {
+	return &Server{service: service, store: s, appID: appID}
 }
 
 func (s *Server) CreateChallenge(ctx context.Context, _ *pb.CreateChallengeRequest) (*pb.CreateChallengeResponse, error) {
@@ -31,9 +32,9 @@ func (s *Server) CreateChallenge(ctx context.Context, _ *pb.CreateChallengeReque
 		return nil, status.Errorf(codes.Internal, "failed to create challenge")
 	}
 	return &pb.CreateChallengeResponse{
-		ChallengeId:    c.ID,
-		ChallengeBytes: c.BytesHex,
-		ExpiresAt:      c.ExpiresAt.Format(time.RFC3339),
+		ChallengeId: c.ID,
+		AppId:       s.appID,
+		ExpiresAt:   c.ExpiresAt.Format(time.RFC3339),
 	}, nil
 }
 
@@ -53,9 +54,9 @@ func (s *Server) GetChallenge(ctx context.Context, req *pb.GetChallengeRequest) 
 		return nil, status.Errorf(codes.FailedPrecondition, "challenge expired")
 	}
 	return &pb.GetChallengeResponse{
-		ChallengeId:    c.ID,
-		ChallengeBytes: c.BytesHex,
-		ExpiresAt:      c.ExpiresAt.Format(time.RFC3339),
+		ChallengeId: c.ID,
+		AppId:       s.appID,
+		ExpiresAt:   c.ExpiresAt.Format(time.RFC3339),
 	}, nil
 }
 
@@ -66,22 +67,23 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 	if len(req.CertChainProof) == 0 || len(req.DeviceSigProof) == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "cert_chain_proof and device_sig_proof are required")
 	}
-	if req.Nullifier == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "nullifier is required")
-	}
 
 	pt, err := linkverify.ParseProofType(req.CertChainType)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	result, err := s.service.VerifyAndRecordByID(ctx, req.ChallengeId, req.Nullifier, linkverify.Request{
+	result, err := s.service.VerifyAndRecord(ctx, req.ChallengeId, linkverify.Request{
 		CertChainProof: req.CertChainProof,
 		DeviceSigProof: req.DeviceSigProof,
 		ProofType:      pt,
 	})
 	if err != nil {
-		return nil, mapServiceError(err, req.Nullifier)
+		nullifier := ""
+		if result != nil {
+			nullifier = result.Nullifier
+		}
+		return nil, mapServiceError(err, nullifier)
 	}
 
 	if !result.Verified {

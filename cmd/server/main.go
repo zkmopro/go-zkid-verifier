@@ -53,9 +53,12 @@ func main() {
 		corsOrigin = "*"
 	}
 
-	appID, ok := os.LookupEnv("APP_ID")
-	if !ok {
-		appID = "0"
+	appID := os.Getenv("APP_ID")
+	if appID == "" {
+		log.Fatal("APP_ID env var is required (62-char lowercase hex of the application's stable 31-byte app_id; the prover signs these bytes)")
+	}
+	if l := len(appID); l != 2*store.AppIDLen {
+		log.Fatalf("APP_ID must be %d hex chars (got %d)", 2*store.AppIDLen, l)
 	}
 
 	debugToken := os.Getenv("DEBUG_TOKEN")
@@ -106,18 +109,14 @@ func main() {
 		log.Fatalf("gRPC listen on %s: %v", grpcAddr, err)
 	}
 
-	mux := httpapi.NewRouter(service, s, provider, issuerProvider, debugToken)
+	mux := httpapi.NewRouter(service, s, provider, issuerProvider, appID, debugToken)
 
 	fmt.Printf("=== zkID Verifier Server ===\n")
 	fmt.Printf("HTTP listening on %s\n", httpAddr)
 	fmt.Printf("gRPC listening on %s\n", grpcAddr)
 	fmt.Printf("Database: %s\n", dbPath)
 	fmt.Printf("Keys directory: %s\n", keysDir)
-	appIDDisplay := fmt.Sprintf("%q", appID)
-	if appID == "" {
-		appIDDisplay = "disabled"
-	}
-	fmt.Printf("APP_ID enforcement: %s\n", appIDDisplay)
+	fmt.Printf("APP_ID: %s\n", appID)
 	fmt.Printf("REST Endpoints:\n")
 	fmt.Printf("  POST /challenge              - Generate a new challenge\n")
 	fmt.Printf("  GET  /challenge/{id}         - Retrieve a challenge\n")
@@ -133,7 +132,7 @@ func main() {
 		grpcServer := grpc.NewServer(
 			grpc.MaxRecvMsgSize(2 * 1024 * 1024),
 		)
-		pb.RegisterZkIDVerifierServer(grpcServer, zkgrpc.NewServer(service, s))
+		pb.RegisterZkIDVerifierServer(grpcServer, zkgrpc.NewServer(service, s, appID))
 		log.Printf("gRPC server started on %s", grpcAddr)
 		if err := grpcServer.Serve(grpcLis); err != nil {
 			log.Printf("gRPC serve error: %v", err)

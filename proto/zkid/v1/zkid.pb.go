@@ -58,12 +58,13 @@ func (*CreateChallengeRequest) Descriptor() ([]byte, []int) {
 }
 
 type CreateChallengeResponse struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	ChallengeId    string                 `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
-	ChallengeBytes string                 `protobuf:"bytes,2,opt,name=challenge_bytes,json=challengeBytes,proto3" json:"challenge_bytes,omitempty"`
-	ExpiresAt      string                 `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	ChallengeId string                 `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
+	// 62-char lowercase hex of the per-challenge 31-byte app_id.
+	AppId         string `protobuf:"bytes,2,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
+	ExpiresAt     string `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateChallengeResponse) Reset() {
@@ -103,9 +104,9 @@ func (x *CreateChallengeResponse) GetChallengeId() string {
 	return ""
 }
 
-func (x *CreateChallengeResponse) GetChallengeBytes() string {
+func (x *CreateChallengeResponse) GetAppId() string {
 	if x != nil {
-		return x.ChallengeBytes
+		return x.AppId
 	}
 	return ""
 }
@@ -162,12 +163,12 @@ func (x *GetChallengeRequest) GetChallengeId() string {
 }
 
 type GetChallengeResponse struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	ChallengeId    string                 `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
-	ChallengeBytes string                 `protobuf:"bytes,2,opt,name=challenge_bytes,json=challengeBytes,proto3" json:"challenge_bytes,omitempty"`
-	ExpiresAt      string                 `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ChallengeId   string                 `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
+	AppId         string                 `protobuf:"bytes,2,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
+	ExpiresAt     string                 `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetChallengeResponse) Reset() {
@@ -207,9 +208,9 @@ func (x *GetChallengeResponse) GetChallengeId() string {
 	return ""
 }
 
-func (x *GetChallengeResponse) GetChallengeBytes() string {
+func (x *GetChallengeResponse) GetAppId() string {
 	if x != nil {
-		return x.ChallengeBytes
+		return x.AppId
 	}
 	return ""
 }
@@ -229,7 +230,6 @@ type LinkVerifyRequest struct {
 	// Binary proof data (no base64 needed in gRPC)
 	CertChainProof []byte `protobuf:"bytes,3,opt,name=cert_chain_proof,json=certChainProof,proto3" json:"cert_chain_proof,omitempty"`
 	DeviceSigProof []byte `protobuf:"bytes,4,opt,name=device_sig_proof,json=deviceSigProof,proto3" json:"device_sig_proof,omitempty"`
-	Nullifier      string `protobuf:"bytes,5,opt,name=nullifier,proto3" json:"nullifier,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -292,13 +292,6 @@ func (x *LinkVerifyRequest) GetDeviceSigProof() []byte {
 	return nil
 }
 
-func (x *LinkVerifyRequest) GetNullifier() string {
-	if x != nil {
-		return x.Nullifier
-	}
-	return ""
-}
-
 type LinkVerifyResponse struct {
 	state      protoimpl.MessageState `protogen:"open.v1"`
 	Verified   bool                   `protobuf:"varint,1,opt,name=verified,proto3" json:"verified,omitempty"`
@@ -312,7 +305,9 @@ type LinkVerifyResponse struct {
 	SmtRoot *SmtRootOutcome `protobuf:"bytes,7,opt,name=smt_root,json=smtRoot,proto3" json:"smt_root,omitempty"`
 	// Populated when issuer-cert enforcement ran; unset when ISSUER_CERT_ENFORCE=disabled.
 	IssuerModulus *IssuerModulusOutcome `protobuf:"bytes,8,opt,name=issuer_modulus,json=issuerModulus,proto3" json:"issuer_modulus,omitempty"`
-	// Populated when APP_ID is configured; unset when APP_ID="" disables the check.
+	// Always populated on a verified proof: the per-challenge app_id binding
+	// outcome. expected = the issued app_id for the matching challenge,
+	// observed = the app_id reconstructed from device_sig public values.
 	AppId         *AppIDOutcome `protobuf:"bytes,9,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -582,9 +577,9 @@ func (x *IssuerModulusOutcome) GetTrustedAt() string {
 type AppIDOutcome struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Match bool                   `protobuf:"varint,1,opt,name=match,proto3" json:"match,omitempty"`
-	// The verifier's configured APP_ID env value.
+	// 62-char hex of the app_id issued for the matching challenge.
 	Expected string `protobuf:"bytes,2,opt,name=expected,proto3" json:"expected,omitempty"`
-	// The app_id public input observed in the cert-chain proof.
+	// 62-char hex reconstructed from device_sig public values [2..32].
 	Observed      string `protobuf:"bytes,3,opt,name=observed,proto3" json:"observed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -646,25 +641,24 @@ var File_proto_zkid_v1_zkid_proto protoreflect.FileDescriptor
 const file_proto_zkid_v1_zkid_proto_rawDesc = "" +
 	"\n" +
 	"\x18proto/zkid/v1/zkid.proto\x12\azkid.v1\"\x18\n" +
-	"\x16CreateChallengeRequest\"\x84\x01\n" +
+	"\x16CreateChallengeRequest\"r\n" +
 	"\x17CreateChallengeResponse\x12!\n" +
-	"\fchallenge_id\x18\x01 \x01(\tR\vchallengeId\x12'\n" +
-	"\x0fchallenge_bytes\x18\x02 \x01(\tR\x0echallengeBytes\x12\x1d\n" +
+	"\fchallenge_id\x18\x01 \x01(\tR\vchallengeId\x12\x15\n" +
+	"\x06app_id\x18\x02 \x01(\tR\x05appId\x12\x1d\n" +
 	"\n" +
 	"expires_at\x18\x03 \x01(\tR\texpiresAt\"8\n" +
 	"\x13GetChallengeRequest\x12!\n" +
-	"\fchallenge_id\x18\x01 \x01(\tR\vchallengeId\"\x81\x01\n" +
+	"\fchallenge_id\x18\x01 \x01(\tR\vchallengeId\"o\n" +
 	"\x14GetChallengeResponse\x12!\n" +
-	"\fchallenge_id\x18\x01 \x01(\tR\vchallengeId\x12'\n" +
-	"\x0fchallenge_bytes\x18\x02 \x01(\tR\x0echallengeBytes\x12\x1d\n" +
+	"\fchallenge_id\x18\x01 \x01(\tR\vchallengeId\x12\x15\n" +
+	"\x06app_id\x18\x02 \x01(\tR\x05appId\x12\x1d\n" +
 	"\n" +
-	"expires_at\x18\x03 \x01(\tR\texpiresAt\"\xd0\x01\n" +
+	"expires_at\x18\x03 \x01(\tR\texpiresAt\"\xb2\x01\n" +
 	"\x11LinkVerifyRequest\x12!\n" +
 	"\fchallenge_id\x18\x01 \x01(\tR\vchallengeId\x12&\n" +
 	"\x0fcert_chain_type\x18\x02 \x01(\tR\rcertChainType\x12(\n" +
 	"\x10cert_chain_proof\x18\x03 \x01(\fR\x0ecertChainProof\x12(\n" +
-	"\x10device_sig_proof\x18\x04 \x01(\fR\x0edeviceSigProof\x12\x1c\n" +
-	"\tnullifier\x18\x05 \x01(\tR\tnullifier\"\xe3\x02\n" +
+	"\x10device_sig_proof\x18\x04 \x01(\fR\x0edeviceSigProof\"\xe3\x02\n" +
 	"\x12LinkVerifyResponse\x12\x1a\n" +
 	"\bverified\x18\x01 \x01(\bR\bverified\x12\x1c\n" +
 	"\tnullifier\x18\x02 \x01(\tR\tnullifier\x12\x1f\n" +

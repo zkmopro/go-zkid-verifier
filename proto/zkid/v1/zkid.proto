@@ -19,7 +19,8 @@ message CreateChallengeRequest {}
 
 message CreateChallengeResponse {
   string challenge_id = 1;
-  string challenge_bytes = 2;
+  // 62-char lowercase hex of the per-challenge 31-byte app_id.
+  string app_id = 2;
   string expires_at = 3;
 }
 
@@ -29,7 +30,7 @@ message GetChallengeRequest {
 
 message GetChallengeResponse {
   string challenge_id = 1;
-  string challenge_bytes = 2;
+  string app_id = 2;
   string expires_at = 3;
 }
 
@@ -40,7 +41,6 @@ message LinkVerifyRequest {
   // Binary proof data (no base64 needed in gRPC)
   bytes cert_chain_proof = 3;
   bytes device_sig_proof = 4;
-  string nullifier = 5;
 }
 
 message LinkVerifyResponse {
@@ -55,7 +55,9 @@ message LinkVerifyResponse {
   SmtRootOutcome smt_root = 7;
   // Populated when issuer-cert enforcement ran; unset when ISSUER_CERT_ENFORCE=disabled.
   IssuerModulusOutcome issuer_modulus = 8;
-  // Populated when APP_ID is configured; unset when APP_ID="" disables the check.
+  // Always populated on a verified proof: the per-challenge app_id binding
+  // outcome. expected = the issued app_id for the matching challenge,
+  // observed = the app_id reconstructed from device_sig public values.
   AppIDOutcome app_id = 9;
 }
 
@@ -86,8 +88,8 @@ message IssuerModulusOutcome {
 
 message AppIDOutcome {
   bool match = 1;
-  // The verifier's configured APP_ID env value.
+  // 62-char hex of the app_id issued for the matching challenge.
   string expected = 2;
-  // The app_id public input observed in the cert-chain proof.
+  // 62-char hex reconstructed from device_sig public values [2..32].
   string observed = 3;
 }

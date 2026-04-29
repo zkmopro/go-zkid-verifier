@@ -26,6 +26,7 @@ type VerifyFailResponse struct {
 }
 
 type LinkVerifyRequest struct {
+	ChallengeID    string `json:"challenge_id"`
 	CertChainType  string `json:"cert_chain_type"`
 	CertChainProof []byte `json:"cert_chain_proof"`
 	DeviceSigProof []byte `json:"device_sig_proof"`

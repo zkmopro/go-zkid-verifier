@@ -10,7 +10,7 @@ import (
 )
 
 func TestIssuerCertStatus_Disabled(t *testing.T) {
-	h := NewRouter(nil, nil, nil, nil, "")
+	h := NewRouter(nil, nil, nil, nil, testAppID, "")
 	req := httptest.NewRequest("GET", "/issuer-cert/status", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
@@ -29,7 +29,7 @@ func TestIssuerCertStatus_Disabled(t *testing.T) {
 
 func TestIssuerCertStatus_Enabled(t *testing.T) {
 	p := issuercert.NewStaticProvider(map[issuercert.IssuerID]*issuercert.CertRecord{})
-	h := NewRouter(nil, nil, nil, p, "")
+	h := NewRouter(nil, nil, nil, p, testAppID, "")
 
 	req := httptest.NewRequest("GET", "/issuer-cert/status", nil)
 	w := httptest.NewRecorder()
