@@ -60,7 +60,7 @@ func (*CreateChallengeRequest) Descriptor() ([]byte, []int) {
 type CreateChallengeResponse struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	ChallengeId string                 `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
-	// 62-char lowercase hex of the per-challenge 31-byte app_id.
+	// Application's stable APP_ID, 62-char lowercase hex.
 	AppId         string `protobuf:"bytes,2,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
 	ExpiresAt     string `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -305,9 +305,7 @@ type LinkVerifyResponse struct {
 	SmtRoot *SmtRootOutcome `protobuf:"bytes,7,opt,name=smt_root,json=smtRoot,proto3" json:"smt_root,omitempty"`
 	// Populated when issuer-cert enforcement ran; unset when ISSUER_CERT_ENFORCE=disabled.
 	IssuerModulus *IssuerModulusOutcome `protobuf:"bytes,8,opt,name=issuer_modulus,json=issuerModulus,proto3" json:"issuer_modulus,omitempty"`
-	// Always populated on a verified proof: the per-challenge app_id binding
-	// outcome. expected = the issued app_id for the matching challenge,
-	// observed = the app_id reconstructed from device_sig public values.
+	// Populated when ExpectedAppID is configured.
 	AppId         *AppIDOutcome `protobuf:"bytes,9,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -575,12 +573,10 @@ func (x *IssuerModulusOutcome) GetTrustedAt() string {
 }
 
 type AppIDOutcome struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Match bool                   `protobuf:"varint,1,opt,name=match,proto3" json:"match,omitempty"`
-	// 62-char hex of the app_id issued for the matching challenge.
-	Expected string `protobuf:"bytes,2,opt,name=expected,proto3" json:"expected,omitempty"`
-	// 62-char hex reconstructed from device_sig public values [2..32].
-	Observed      string `protobuf:"bytes,3,opt,name=observed,proto3" json:"observed,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Match         bool                   `protobuf:"varint,1,opt,name=match,proto3" json:"match,omitempty"`
+	Expected      string                 `protobuf:"bytes,2,opt,name=expected,proto3" json:"expected,omitempty"`
+	Observed      string                 `protobuf:"bytes,3,opt,name=observed,proto3" json:"observed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

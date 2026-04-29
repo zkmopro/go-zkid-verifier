@@ -9,9 +9,6 @@ import (
 	"github.com/zkmopro/go-zkid-verifier/store"
 )
 
-// ChallengeResponse is what /challenge returns: a fresh challenge_id (replay
-// protection) plus the application's stable app_id (the bytes the client
-// must sign).
 type ChallengeResponse struct {
 	ChallengeID string    `json:"challenge_id"`
 	AppID       string    `json:"app_id"`

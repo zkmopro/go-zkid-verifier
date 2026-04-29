@@ -7,9 +7,9 @@ Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plu
 1. The FFI accepts both proofs and their `pk_commit` linkage holds.
 2. The `smt_root` public input matches the current revocation-list root for the issuer ([moica-revocation-smt](https://github.com/moven0831/moica-revocation-smt)).
 3. The `issuer_rsa_modulus` public input matches the RSA modulus of the published MOICA-G2 (RS2048) or MOICA-G3 (RS4096) certificate — i.e. the proof was actually signed by MOICA, not an impostor.
-4. The `app_id` reconstructed from device_sig public values matches the application's stable `APP_ID` env value (constant-time compare). The prover signs `APP_ID`'s 31 raw bytes; the device_sig circuit exposes them as 31 public field elements, and the signature itself derives the per-card nullifier — so the verifier can confirm both "this proof was minted for this application" and "this card has authenticated here before" in one shot.
+4. The `app_id` reconstructed from device_sig public values matches the configured `APP_ID` env value (constant-time compare). The prover signs `APP_ID`; the resulting RSA signature derives the cardholder-bound `nullifier` inside the same circuit.
 
-`APP_ID` is application-scoped (one stable 31-byte value per relying party), set via env at server startup. `challenge_id` is per-session — a fresh nonce returned by `/challenge` and submitted with `/link-verify`, ensuring each authentication can only be consumed once.
+`APP_ID` is one 31-byte value per relying party, set via env at server startup. `challenge_id` is per-session — a fresh nonce from `/challenge`, submitted with `/link-verify`, that the store consumes on success.
 
 ## Quickstart
 
@@ -54,7 +54,7 @@ curl -s http://localhost:8080/issuer-cert/status | jq .
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/challenge` | Issue a fresh `challenge_id`. Returns `{challenge_id, app_id, expires_at}` where `app_id` is the server's configured 62-char hex value. TTL 5 min. The prover signs `app_id`; the resulting signature derives the cardholder-bound nullifier inside the device-sig circuit. |
+| `POST` | `/challenge` | Issue a fresh `challenge_id`. Returns `{challenge_id, app_id, expires_at}`, TTL 5 min. |
 | `GET`  | `/challenge/{id}` | Fetch a challenge by ID. |
 | `POST` | `/link-verify` | Verify a cert-chain + device-sig proof pair. Body limit 2 MB. |
 | `GET`  | `/smt-root/status` | Trusted revocation-root cache snapshot. |

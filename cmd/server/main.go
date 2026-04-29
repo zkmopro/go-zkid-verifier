@@ -55,7 +55,7 @@ func main() {
 
 	appID := os.Getenv("APP_ID")
 	if appID == "" {
-		log.Fatal("APP_ID env var is required (62-char lowercase hex of the application's stable 31-byte app_id; the prover signs these bytes)")
+		log.Fatal("APP_ID env var is required")
 	}
 	if l := len(appID); l != 2*store.AppIDLen {
 		log.Fatalf("APP_ID must be %d hex chars (got %d)", 2*store.AppIDLen, l)

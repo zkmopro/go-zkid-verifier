@@ -19,7 +19,7 @@ message CreateChallengeRequest {}
 
 message CreateChallengeResponse {
   string challenge_id = 1;
-  // 62-char lowercase hex of the per-challenge 31-byte app_id.
+  // Application's stable APP_ID, 62-char lowercase hex.
   string app_id = 2;
   string expires_at = 3;
 }
@@ -55,9 +55,7 @@ message LinkVerifyResponse {
   SmtRootOutcome smt_root = 7;
   // Populated when issuer-cert enforcement ran; unset when ISSUER_CERT_ENFORCE=disabled.
   IssuerModulusOutcome issuer_modulus = 8;
-  // Always populated on a verified proof: the per-challenge app_id binding
-  // outcome. expected = the issued app_id for the matching challenge,
-  // observed = the app_id reconstructed from device_sig public values.
+  // Populated when ExpectedAppID is configured.
   AppIDOutcome app_id = 9;
 }
 
@@ -88,8 +86,6 @@ message IssuerModulusOutcome {
 
 message AppIDOutcome {
   bool match = 1;
-  // 62-char hex of the app_id issued for the matching challenge.
   string expected = 2;
-  // 62-char hex reconstructed from device_sig public values [2..32].
   string observed = 3;
 }

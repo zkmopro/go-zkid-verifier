@@ -7,13 +7,11 @@ import (
 	"github.com/zkmopro/go-zkid-verifier/store"
 )
 
-// Service coordinates link verification and persistence.
 type Service struct {
 	verifier ProofVerifier
 	store    store.Store
 }
 
-// ProofVerifier verifies a link request.
 type ProofVerifier interface {
 	Verify(Request) (*Result, error)
 }
@@ -22,7 +20,6 @@ func NewService(v ProofVerifier, s store.Store) *Service {
 	return &Service{verifier: v, store: s}
 }
 
-// ProcessResult includes verifier output and persistence metadata.
 type ProcessResult struct {
 	*Result
 	Nullifier   string
@@ -30,12 +27,8 @@ type ProcessResult struct {
 	Persisted   bool
 }
 
-// VerifyAndRecord verifies the proof, checks app_id binding via the configured
-// Verifier.ExpectedAppID, and on success consumes the supplied challenge_id +
-// records the proof's nullifier. Both HTTP and gRPC route through here.
-//
-// Nullifier is derived from the proof's device_sig public values; callers do
-// not provide it.
+// Early-rejects expired challenges to skip the (expensive) FFI verify; the
+// in-TX expiry check inside store.VerifyAndRecord remains authoritative.
 func (s *Service) VerifyAndRecord(
 	ctx context.Context,
 	challengeID string,
@@ -71,7 +64,6 @@ func (s *Service) VerifyAndRecord(
 	return s.finalize(ctx, challengeID, r.Parsed.Nullifier, req.ProofType, r)
 }
 
-// finalize records the verification and returns the composed process result.
 func (s *Service) finalize(
 	ctx context.Context,
 	challengeID, nullifier string,

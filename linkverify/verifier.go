@@ -14,7 +14,7 @@ type Verifier struct {
 	KeysDir       string
 	SmtRoot       *smtroot.Provider
 	IssuerCert    *issuercert.Provider
-	ExpectedAppID string // 62-char lowercase hex of the application's stable app_id (env APP_ID)
+	ExpectedAppID string
 	Logger        smtroot.Logger
 }
 
@@ -49,8 +49,6 @@ type IssuerModulusOutcome struct {
 	TrustedAt      time.Time        `json:"trusted_at,omitempty"`
 }
 
-// AppIDOutcome reports the proof-vs-configured-app_id binding result.
-// Match=true when the proof's app_id matches the application's configured APP_ID.
 type AppIDOutcome struct {
 	Match    bool   `json:"match"`
 	Expected string `json:"expected"`
@@ -179,8 +177,6 @@ func checkIssuerModulus(pt ProofType, parsed *verifier.ParsedInputs, provider *i
 	return outcome, nil
 }
 
-// checkAppID compares the proof's app_id (62-char hex from device_sig public
-// values) to the verifier's configured APP_ID in constant time.
 func checkAppID(parsed *verifier.ParsedInputs, expected string, logger smtroot.Logger) *AppIDOutcome {
 	match := subtle.ConstantTimeCompare([]byte(parsed.AppID), []byte(expected)) == 1
 	outcome := &AppIDOutcome{

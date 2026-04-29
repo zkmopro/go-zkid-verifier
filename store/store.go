@@ -14,13 +14,11 @@ var (
 	ErrChallengeConsumed  = errors.New("challenge already consumed")
 )
 
-// AppIDLen is the wire-format length of app_id, in bytes (31 small field
-// elements in device_sig public values).
+// AppIDLen is the wire length of app_id in bytes.
 const AppIDLen = 31
 
-// Challenge is a server-issued nonce for replay protection. The application
-// signs the server's configured APP_ID; the challenge_id is what guarantees
-// each session-bound proof can only be consumed once.
+// Challenge is a per-session replay nonce; the prover signs the server's
+// configured APP_ID, not this id.
 type Challenge struct {
 	ID        string    `json:"challenge_id"`
 	ExpiresAt time.Time `json:"expires_at"`

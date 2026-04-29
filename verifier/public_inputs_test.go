@@ -6,8 +6,7 @@ import (
 	"testing"
 )
 
-// fieldHex formats a small uint as the 0x-prefixed, 64-char zero-padded
-// big-endian hex emitted by the Spartan2 FFI for public field elements.
+// Mimics the Spartan2 FFI wire format: 0x + 64-char zero-padded big-endian.
 func fieldHex(v uint8) string {
 	return "0x" + strings.Repeat("0", 62) + fmt.Sprintf("%02x", v)
 }

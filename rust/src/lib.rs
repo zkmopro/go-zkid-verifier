@@ -113,9 +113,6 @@ pub extern "C" fn zk_link_verify(
             path_config.key_path(DeviceSigRsa2048::VERIFYING_KEY),
         );
 
-        // pk_commit is the first output of both circuits in the new layout:
-        //   cert_chain: [pk_commit, issuer_modulus..., smt_root]
-        //   device_sig: [pk_commit, nullifier, app_id_bytes...]
         if cc_public_values.is_empty() || ds_public_values.is_empty() {
             panic!(
                 "public values empty: cert_chain={}, device_sig={}",
