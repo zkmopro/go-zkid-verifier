@@ -16,8 +16,6 @@ import (
 const schema = `
 CREATE TABLE IF NOT EXISTS challenges (
     id          TEXT     PRIMARY KEY,
-    bytes_hex   TEXT     NOT NULL,
-    bytes_raw   BLOB     NOT NULL,
     issued_at   DATETIME NOT NULL DEFAULT (datetime('now')),
     expires_at  DATETIME NOT NULL,
     consumed_at DATETIME
@@ -81,88 +79,42 @@ func (s *SQLiteStore) Close() error {
 }
 
 func (s *SQLiteStore) CreateChallenge(ctx context.Context) (*Challenge, error) {
-	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return nil, fmt.Errorf("generate nonce: %w", err)
+	var seed [16]byte
+	if _, err := rand.Read(seed[:]); err != nil {
+		return nil, fmt.Errorf("generate challenge seed: %w", err)
 	}
-	nonce[15] &= 0xF0 // zero last nibble so BytesHex is exactly 31 hex chars
-
-	idHash := sha256.Sum256(nonce[:])
+	idHash := sha256.Sum256(seed[:])
 	id := hex.EncodeToString(idHash[:16])
-	bytesHex := hex.EncodeToString(nonce[:])[:31]
 	expiresAt := time.Now().Add(s.ttl)
 
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO challenges (id, bytes_hex, bytes_raw, expires_at) VALUES (?, ?, ?, ?)`,
-		id, bytesHex, nonce[:], expiresAt.UTC().Format(time.RFC3339),
+		`INSERT INTO challenges (id, expires_at) VALUES (?, ?)`,
+		id, expiresAt.UTC().Format(time.RFC3339),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert challenge: %w", err)
 	}
 
-	return &Challenge{
-		ID:        id,
-		Bytes:     nonce,
-		BytesHex:  bytesHex,
-		ExpiresAt: expiresAt,
-	}, nil
+	return &Challenge{ID: id, ExpiresAt: expiresAt}, nil
 }
 
 func (s *SQLiteStore) GetChallenge(ctx context.Context, id string) (*Challenge, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, bytes_hex, bytes_raw, expires_at FROM challenges WHERE id = ?`, id,
+		`SELECT id, expires_at FROM challenges WHERE id = ?`, id,
 	)
-
 	var c Challenge
-	var rawBytes []byte
 	var expiresAtStr string
-	if err := row.Scan(&c.ID, &c.BytesHex, &rawBytes, &expiresAtStr); err != nil {
+	if err := row.Scan(&c.ID, &expiresAtStr); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("scan challenge: %w", err)
 	}
-
-	if len(rawBytes) != 16 {
-		return nil, fmt.Errorf("corrupt challenge: bytes_raw has %d bytes, want 16", len(rawBytes))
-	}
-	copy(c.Bytes[:], rawBytes)
-
 	expiresAt, parseErr := parseTime(expiresAtStr)
 	if parseErr != nil {
 		return nil, fmt.Errorf("parse expires_at: %w", parseErr)
 	}
 	c.ExpiresAt = expiresAt
-
-	return &c, nil
-}
-
-func (s *SQLiteStore) GetChallengeByHex(ctx context.Context, bytesHex string) (*Challenge, error) {
-	row := s.db.QueryRowContext(ctx,
-		`SELECT id, bytes_hex, bytes_raw, expires_at FROM challenges WHERE bytes_hex = ?`, bytesHex,
-	)
-
-	var c Challenge
-	var rawBytes []byte
-	var expiresAtStr string
-	if err := row.Scan(&c.ID, &c.BytesHex, &rawBytes, &expiresAtStr); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("scan challenge: %w", err)
-	}
-
-	if len(rawBytes) != 16 {
-		return nil, fmt.Errorf("corrupt challenge: bytes_raw has %d bytes, want 16", len(rawBytes))
-	}
-	copy(c.Bytes[:], rawBytes)
-
-	expiresAt, parseErr := parseTime(expiresAtStr)
-	if parseErr != nil {
-		return nil, fmt.Errorf("parse expires_at: %w", parseErr)
-	}
-	c.ExpiresAt = expiresAt
-
 	return &c, nil
 }
 

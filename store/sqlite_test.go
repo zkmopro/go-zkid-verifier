@@ -34,9 +34,6 @@ func TestCreateChallenge(t *testing.T) {
 	if c.ID == "" {
 		t.Fatal("empty ID")
 	}
-	if c.BytesHex == "" || len(c.BytesHex) != 31 {
-		t.Fatalf("BytesHex length: got %d, want 31", len(c.BytesHex))
-	}
 	if c.ExpiresAt.IsZero() {
 		t.Fatal("zero ExpiresAt")
 	}
@@ -84,12 +81,6 @@ func TestGetChallengeFound(t *testing.T) {
 	}
 	if got.ID != created.ID {
 		t.Fatalf("ID: got %s, want %s", got.ID, created.ID)
-	}
-	if got.BytesHex != created.BytesHex {
-		t.Fatal("BytesHex mismatch")
-	}
-	if got.Bytes != created.Bytes {
-		t.Fatal("Bytes mismatch")
 	}
 }
 

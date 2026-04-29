@@ -14,11 +14,15 @@ var (
 	ErrChallengeConsumed  = errors.New("challenge already consumed")
 )
 
-// Challenge represents a server-generated nonce for the ZK verification flow.
+// AppIDLen is the wire-format length of app_id, in bytes (31 small field
+// elements in device_sig public values).
+const AppIDLen = 31
+
+// Challenge is a server-issued nonce for replay protection. The application
+// signs the server's configured APP_ID; the challenge_id is what guarantees
+// each session-bound proof can only be consumed once.
 type Challenge struct {
 	ID        string    `json:"challenge_id"`
-	Bytes     [16]byte  `json:"-"`
-	BytesHex  string    `json:"challenge_bytes"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
@@ -36,16 +40,12 @@ type VerificationRecord struct {
 // BBS teams implement this interface against their own DB.
 // The SQLite implementation in sqlite.go is the reference.
 type Store interface {
-	// CreateChallenge generates and persists a new 32-byte challenge nonce.
+	// CreateChallenge generates and persists a new challenge_id.
 	CreateChallenge(ctx context.Context) (*Challenge, error)
 
 	// GetChallenge retrieves a challenge by ID.
 	// Returns nil, nil if not found. Does NOT check expiry (caller's responsibility).
 	GetChallenge(ctx context.Context, id string) (*Challenge, error)
-
-	// GetChallengeByHex retrieves a challenge by its hex value (bytes_hex column).
-	// Returns nil, nil if not found. Does NOT check expiry (caller's responsibility).
-	GetChallengeByHex(ctx context.Context, bytesHex string) (*Challenge, error)
 
 	// VerifyAndRecord atomically validates the challenge, records a verification,
 	// and consumes the challenge inside a single DB transaction.
