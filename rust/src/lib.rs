@@ -113,21 +113,17 @@ pub extern "C" fn zk_link_verify(
             path_config.key_path(DeviceSigRsa2048::VERIFYING_KEY),
         );
 
-        // Bounds check: cert-chain must have >= 2 public values (nullifier, pk_commit, ...)
-        // device-sig must have >= 1 public value (pk_commit, packed_tbs...)
-        if cc_public_values.len() < 2 {
+        // pk_commit is the first output of both circuits in the new layout:
+        //   cert_chain: [pk_commit, issuer_modulus..., smt_root]
+        //   device_sig: [pk_commit, nullifier, app_id_bytes...]
+        if cc_public_values.is_empty() || ds_public_values.is_empty() {
             panic!(
-                "cert-chain public values has {} elements, expected >= 2",
-                cc_public_values.len()
+                "public values empty: cert_chain={}, device_sig={}",
+                cc_public_values.len(),
+                ds_public_values.len()
             );
         }
-        if ds_public_values.is_empty() {
-            panic!("device-sig public values is empty, expected >= 1");
-        }
-
-        // pk_commit is at index 1 for cert-chain (after nullifier)
-        // pk_commit is at index 0 for device-sig (first output)
-        let pk_commit_a = &cc_public_values[1];
+        let pk_commit_a = &cc_public_values[0];
         let pk_commit_b = &ds_public_values[0];
 
         let commits_match: bool = pk_commit_a
