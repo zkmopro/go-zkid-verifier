@@ -184,50 +184,24 @@ func TestCheckIssuerModulus_UnavailableWhenIssuerMissing(t *testing.T) {
 }
 
 func TestCheckAppID_Match(t *testing.T) {
-	// Prover wire format: 0x-prefixed, 64-char zero-padded big-endian hex.
-	// Operator config: bare decimal. Both must normalize to the same big.Int.
-	parsed := &verifier.ParsedInputs{AppID: "0x0000000000000000000000000000000000000000000000000000000000000000"}
-	outcome := checkAppID(parsed, "0", noopLogger{})
+	parsed := &verifier.ParsedInputs{AppID: "0xabc123"}
+	outcome := checkAppID(parsed, "0xabc123", noopLogger{})
 	if !outcome.Match {
-		t.Fatalf("expected Match=true across wire/config formats, got %+v", outcome)
+		t.Fatalf("expected Match=true, got %+v", outcome)
+	}
+	if outcome.Expected != "0xabc123" || outcome.Observed != "0xabc123" {
+		t.Errorf("expected/observed: %+v", outcome)
 	}
 }
 
 func TestCheckAppID_Mismatch(t *testing.T) {
-	parsed := &verifier.ParsedInputs{AppID: "0x0000000000000000000000000000000000000000000000000000000000000000"}
-	outcome := checkAppID(parsed, "42", noopLogger{})
+	parsed := &verifier.ParsedInputs{AppID: "0xabc123"}
+	outcome := checkAppID(parsed, "0xdef456", noopLogger{})
 	if outcome.Match {
 		t.Fatalf("expected Match=false, got %+v", outcome)
 	}
-	if outcome.Expected != "42" {
-		t.Errorf("Expected: got %q, want %q", outcome.Expected, "42")
-	}
-}
-
-func TestAppIDsEqual(t *testing.T) {
-	cases := []struct {
-		name           string
-		observed       string
-		expected       string
-		want           bool
-	}{
-		{"hex-zero matches decimal-zero", "0x0000000000000000000000000000000000000000000000000000000000000000", "0", true},
-		{"hex-42 matches decimal-42", "0x000000000000000000000000000000000000000000000000000000000000002a", "42", true},
-		{"hex-42 matches hex-42 short", "0x000000000000000000000000000000000000000000000000000000000000002a", "0x2a", true},
-		{"different values mismatch", "0x0000000000000000000000000000000000000000000000000000000000000000", "1", false},
-		{"trims surrounding whitespace", "  0x00 ", "0", true},
-		{"trims trailing newline on expected", "0x0000000000000000000000000000000000000000000000000000000000000000", "0\n", true},
-		{"mid-string space fails parse", "0x 00", "0", false},
-		{"unparseable observed", "not-a-number", "0", false},
-		{"unparseable expected", "0", "not-a-number", false},
-		{"empty expected", "0", "", false},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if got := appIDsEqual(c.observed, c.expected); got != c.want {
-				t.Errorf("appIDsEqual(%q, %q) = %v, want %v", c.observed, c.expected, got, c.want)
-			}
-		})
+	if outcome.Expected != "0xdef456" {
+		t.Errorf("Expected: got %q", outcome.Expected)
 	}
 }
 

@@ -1,9 +1,8 @@
 package linkverify
 
 import (
+	"crypto/subtle"
 	"fmt"
-	"math/big"
-	"strings"
 	"time"
 
 	"github.com/zkmopro/go-zkid-verifier/issuercert"
@@ -11,12 +10,11 @@ import (
 	"github.com/zkmopro/go-zkid-verifier/verifier"
 )
 
-
 type Verifier struct {
 	KeysDir       string
 	SmtRoot       *smtroot.Provider
 	IssuerCert    *issuercert.Provider
-	ExpectedAppID string
+	ExpectedAppID string // 62-char lowercase hex of the application's stable app_id (env APP_ID)
 	Logger        smtroot.Logger
 }
 
@@ -51,6 +49,8 @@ type IssuerModulusOutcome struct {
 	TrustedAt      time.Time        `json:"trusted_at,omitempty"`
 }
 
+// AppIDOutcome reports the proof-vs-configured-app_id binding result.
+// Match=true when the proof's app_id matches the application's configured APP_ID.
 type AppIDOutcome struct {
 	Match    bool   `json:"match"`
 	Expected string `json:"expected"`
@@ -179,14 +179,17 @@ func checkIssuerModulus(pt ProofType, parsed *verifier.ParsedInputs, provider *i
 	return outcome, nil
 }
 
+// checkAppID compares the proof's app_id (62-char hex from device_sig public
+// values) to the verifier's configured APP_ID in constant time.
 func checkAppID(parsed *verifier.ParsedInputs, expected string, logger smtroot.Logger) *AppIDOutcome {
+	match := subtle.ConstantTimeCompare([]byte(parsed.AppID), []byte(expected)) == 1
 	outcome := &AppIDOutcome{
-		Match:    appIDsEqual(parsed.AppID, expected),
+		Match:    match,
 		Expected: expected,
 		Observed: parsed.AppID,
 	}
 	level, event := "info", "app_id_check"
-	if !outcome.Match {
+	if !match {
 		level, event = "warn", "app_id_mismatch"
 	}
 	logger.Event(level, event,
@@ -195,37 +198,6 @@ func checkAppID(parsed *verifier.ParsedInputs, expected string, logger smtroot.L
 		"match", outcome.Match,
 	)
 	return outcome
-}
-
-// appIDsEqual compares two app_id strings as field-element values, normalizing
-// across the prover's wire format ("0x" + 64-char zero-padded big-endian hex,
-// e.g. "0x000…000" for 0) and operator-supplied env values ("0", "42", "0x2a").
-// Both forms parse to the same big.Int; mismatches return false rather than
-// erroring so a malformed value naturally fails the check.
-func appIDsEqual(observed, expected string) bool {
-	o, ok := parseAppID(observed)
-	if !ok {
-		return false
-	}
-	e, ok := parseAppID(expected)
-	if !ok {
-		return false
-	}
-	return o.Cmp(e) == 0
-}
-
-func parseAppID(s string) (*big.Int, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return nil, false
-	}
-	base := 10
-	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
-		s = s[2:]
-		base = 16
-	}
-	n, ok := new(big.Int).SetString(s, base)
-	return n, ok
 }
 
 // RS2048 → G2, RS4096 → G3.

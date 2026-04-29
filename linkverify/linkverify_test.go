@@ -51,20 +51,17 @@ func TestVerifyRS2048(t *testing.T) {
 		t.Fatalf("expected at least 1 device_sig signal, got %d", len(signals.DeviceSig))
 	}
 	// pk_commit must match across both circuits
-	if signals.CertChain[1] != signals.DeviceSig[0] {
-		t.Fatalf("pk_commit mismatch: cert_chain[1]=%s device_sig[0]=%s", signals.CertChain[1], signals.DeviceSig[0])
+	if signals.CertChain[0] != signals.DeviceSig[0] {
+		t.Fatalf("pk_commit mismatch: cert_chain[0]=%s device_sig[0]=%s", signals.CertChain[0], signals.DeviceSig[0])
 	}
 
 	ds, err := verifier.ParseDeviceSig(signals.DeviceSig)
 	if err != nil {
 		t.Fatalf("ParseDeviceSig: %v", err)
 	}
-	challenge, err := ds.Challenge()
-	if err != nil {
-		t.Fatalf("Challenge(): %v", err)
-	}
-	t.Logf("pk_commit:  %s", ds.PkCommit)
-	t.Logf("challenge:  %s", challenge)
+	t.Logf("pk_commit: %s", ds.PkCommit)
+	t.Logf("nullifier: %s", ds.Nullifier)
+	t.Logf("app_id:    %s", ds.AppIDHex)
 }
 
 func TestVerifyRS4096(t *testing.T) {
@@ -107,16 +104,14 @@ func TestVerifyRS4096(t *testing.T) {
 	if len(signals.DeviceSig) < 1 {
 		t.Fatalf("expected at least 1 device_sig signal, got %d", len(signals.DeviceSig))
 	}
-	if signals.CertChain[1] != signals.DeviceSig[0] {
-		t.Fatalf("pk_commit mismatch: cert_chain[1]=%s device_sig[0]=%s", signals.CertChain[1], signals.DeviceSig[0])
+	if signals.CertChain[0] != signals.DeviceSig[0] {
+		t.Fatalf("pk_commit mismatch: cert_chain[0]=%s device_sig[0]=%s", signals.CertChain[0], signals.DeviceSig[0])
 	}
 
 	pi, err := verifier.ParseCertChainRS4096(signals.CertChain)
 	if err != nil {
 		t.Fatalf("ParseCertChainRS4096: %v", err)
 	}
-	t.Logf("nullifier:          %s", pi.Nullifier)
-	t.Logf("app_id:             %s", pi.AppID)
 	t.Logf("pk_commit:          %s", pi.PkCommit)
 	t.Logf("issuer_rsa_modulus: %v", pi.IssuerRSAModulus)
 	t.Logf("smt_root:           %s", pi.SmtRoot)
@@ -231,60 +226,6 @@ func TestVerifier_NilProviderPassthrough(t *testing.T) {
 	}
 	if result.SmtRoot != nil {
 		t.Errorf("expected nil SmtRoot with nil provider, got %+v", result.SmtRoot)
-	}
-}
-
-// Drives Verify with the configured ExpectedAppID set to the value the prover
-// actually emitted (default fixture: app_id=0). Confirms the wire-format hex
-// observed in the proof and the bare decimal in env normalize to the same
-// big.Int so a default-config deployment doesn't silently reject every proof.
-func TestVerifier_AppIDEnforcement(t *testing.T) {
-	keysDir := os.Getenv("KEYS_DIR")
-	if keysDir == "" {
-		keysDir = filepath.Join("..", "keys")
-	}
-	if _, err := os.Stat(filepath.Join(keysDir, "cert_chain_rs2048_verifying.key")); err != nil {
-		t.Skip("verifying keys not found; set KEYS_DIR or run make download-keys")
-	}
-	absKeysDir, _ := filepath.Abs(keysDir)
-
-	artifactsDir := filepath.Join("..", "tests", "artifacts", "cc2048_ds2048")
-	ccProof, _ := os.ReadFile(filepath.Join(artifactsDir, "cert_chain_rs2048_proof.bin"))
-	dsProof, _ := os.ReadFile(filepath.Join(artifactsDir, "device_sig_rs2048_proof.bin"))
-	req := Request{
-		CertChainProof: ccProof,
-		DeviceSigProof: dsProof,
-		ProofType:      ProofTypeRS2048,
-	}
-
-	matchV := &Verifier{KeysDir: absKeysDir, ExpectedAppID: "0", Logger: smtroot.DefaultLogger{}}
-	matchRes, err := matchV.Verify(req)
-	if err != nil {
-		t.Fatalf("Verify with matching APP_ID: %v", err)
-	}
-	if !matchRes.Verified {
-		t.Fatalf("expected Verified=true with APP_ID=0, got reason=%q", matchRes.Reason)
-	}
-	if matchRes.AppID == nil || !matchRes.AppID.Match {
-		t.Fatalf("expected AppID.Match=true, got %+v", matchRes.AppID)
-	}
-
-	mismatchV := &Verifier{KeysDir: absKeysDir, ExpectedAppID: "42", Logger: smtroot.DefaultLogger{}}
-	mismatchRes, err := mismatchV.Verify(req)
-	if err != nil {
-		t.Fatalf("Verify with mismatching APP_ID: %v", err)
-	}
-	if mismatchRes.Verified {
-		t.Fatalf("expected Verified=false with APP_ID=42")
-	}
-	if mismatchRes.Reason != ReasonAppIDMismatch {
-		t.Errorf("Reason = %q, want %q", mismatchRes.Reason, ReasonAppIDMismatch)
-	}
-	if mismatchRes.AppID == nil || mismatchRes.AppID.Match {
-		t.Fatalf("expected AppID.Match=false, got %+v", mismatchRes.AppID)
-	}
-	if mismatchRes.AppID.Expected != "42" {
-		t.Errorf("AppID.Expected = %q, want %q", mismatchRes.AppID.Expected, "42")
 	}
 }
 

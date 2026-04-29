@@ -30,34 +30,15 @@ type ProcessResult struct {
 	Persisted   bool
 }
 
-// VerifyAndRecordByProof verifies and records using challenge/nullifier from proof inputs.
-func (s *Service) VerifyAndRecordByProof(ctx context.Context, req Request) (*ProcessResult, error) {
-	r, err := s.verifier.Verify(req)
-	if err != nil {
-		return nil, err
-	}
-	if !r.Verified {
-		return &ProcessResult{Result: r}, nil
-	}
-
-	c, err := s.store.GetChallengeByHex(ctx, r.Parsed.Challenge)
-	if err != nil {
-		return nil, err
-	}
-	if c == nil {
-		return nil, store.ErrChallengeNotFound
-	}
-	if time.Now().After(c.ExpiresAt) {
-		return nil, store.ErrChallengeExpired
-	}
-
-	return s.finalize(ctx, c.ID, r.Parsed.Nullifier, req.ProofType, r)
-}
-
-// VerifyAndRecordByID verifies and records using caller-provided challengeID/nullifier.
-func (s *Service) VerifyAndRecordByID(
+// VerifyAndRecord verifies the proof, checks app_id binding via the configured
+// Verifier.ExpectedAppID, and on success consumes the supplied challenge_id +
+// records the proof's nullifier. Both HTTP and gRPC route through here.
+//
+// Nullifier is derived from the proof's device_sig public values; callers do
+// not provide it.
+func (s *Service) VerifyAndRecord(
 	ctx context.Context,
-	challengeID, nullifier string,
+	challengeID string,
 	req Request,
 ) (*ProcessResult, error) {
 	c, err := s.store.GetChallenge(ctx, challengeID)
@@ -76,6 +57,10 @@ func (s *Service) VerifyAndRecordByID(
 		return nil, err
 	}
 	if !r.Verified {
+		nullifier := ""
+		if r.Parsed != nil {
+			nullifier = r.Parsed.Nullifier
+		}
 		return &ProcessResult{
 			Result:      r,
 			Nullifier:   nullifier,
@@ -83,7 +68,7 @@ func (s *Service) VerifyAndRecordByID(
 		}, nil
 	}
 
-	return s.finalize(ctx, challengeID, nullifier, req.ProofType, r)
+	return s.finalize(ctx, challengeID, r.Parsed.Nullifier, req.ProofType, r)
 }
 
 // finalize records the verification and returns the composed process result.
