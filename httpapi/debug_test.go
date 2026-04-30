@@ -20,7 +20,7 @@ func setupDebugServer(t *testing.T, token string) (http.Handler, *store.SQLiteSt
 		t.Fatalf("new store: %v", err)
 	}
 	t.Cleanup(func() { s.Close() })
-	return NewRouter(nil, s, nil, nil, token), s
+	return NewRouter(nil, s, nil, nil, testAppID, token), s
 }
 
 func seedOne(t *testing.T, s *store.SQLiteStore) {
@@ -30,7 +30,7 @@ func seedOne(t *testing.T, s *store.SQLiteStore) {
 	if err != nil {
 		t.Fatalf("seed challenge: %v", err)
 	}
-	if err := s.VerifyAndRecord(ctx, "seed-nullifier", c.ID, nil, "link_rs2048"); err != nil {
+	if err := s.VerifyAndRecord(ctx, "seed-nullifier", c.Challenge, nil, "link_rs2048"); err != nil {
 		t.Fatalf("seed verify: %v", err)
 	}
 }

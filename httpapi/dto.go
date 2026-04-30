@@ -15,6 +15,7 @@ type VerifySuccessResponse struct {
 	SmtRoot       *linkverify.SmtRootOutcome       `json:"smt_root,omitempty"`
 	IssuerModulus *linkverify.IssuerModulusOutcome `json:"issuer_modulus,omitempty"`
 	AppID         *linkverify.AppIDOutcome         `json:"app_id,omitempty"`
+	Challenge     *linkverify.ChallengeOutcome     `json:"challenge,omitempty"`
 }
 
 type VerifyFailResponse struct {
@@ -23,9 +24,11 @@ type VerifyFailResponse struct {
 	SmtRoot       *linkverify.SmtRootOutcome       `json:"smt_root,omitempty"`
 	IssuerModulus *linkverify.IssuerModulusOutcome `json:"issuer_modulus,omitempty"`
 	AppID         *linkverify.AppIDOutcome         `json:"app_id,omitempty"`
+	Challenge     *linkverify.ChallengeOutcome     `json:"challenge,omitempty"`
 }
 
 type LinkVerifyRequest struct {
+	Challenge      string `json:"challenge"`
 	CertChainType  string `json:"cert_chain_type"`
 	CertChainProof []byte `json:"cert_chain_proof"`
 	DeviceSigProof []byte `json:"device_sig_proof"`

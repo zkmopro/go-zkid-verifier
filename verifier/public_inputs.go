@@ -1,164 +1,133 @@
 package verifier
 
 import (
-	"bytes"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"strings"
 )
 
-// CertChainRS2048PublicInputs holds the named public outputs from the cert-chain RS2048 circuit.
-//
-// Layout (21 field elements):
-//
-//	0:     nullifier
-//	1:     pk_commit
-//	2–18:  issuer_rsa_modulus  (17 limbs)
-//	19:    smt_root
-//	20:    app_id
+const AppIDLen = 31
+
+// cert_chain RS2048 layout: [pk_commit, issuer_modulus[17], smt_root].
 type CertChainRS2048PublicInputs struct {
-	Nullifier        string
 	PkCommit         string
-	IssuerRSAModulus []string // 17 limbs
+	IssuerRSAModulus []string
 	SmtRoot          string
-	AppID            string
 }
 
-// ParseCertChainRS2048 parses the raw CertChain signal slice from PublicSignals
-// into named fields. Returns an error if the slice has fewer than 21 elements.
 func ParseCertChainRS2048(signals []string) (*CertChainRS2048PublicInputs, error) {
-	const required = 21
+	const required = 19
 	if len(signals) != required {
 		return nil, fmt.Errorf("cert_chain RS2048 requires exactly %d public inputs, got %d", required, len(signals))
 	}
 	return &CertChainRS2048PublicInputs{
-		Nullifier:        signals[0],
-		PkCommit:         signals[1],
-		IssuerRSAModulus: signals[2:19],
-		SmtRoot:          signals[19],
-		AppID:            signals[20],
+		PkCommit:         signals[0],
+		IssuerRSAModulus: signals[1:18],
+		SmtRoot:          signals[18],
 	}, nil
 }
 
-// CertChainRS4096PublicInputs holds the named public outputs from the cert-chain RS4096 circuit.
-//
-// Layout (38 field elements):
-//
-//	0:     nullifier
-//	1:     pk_commit
-//	2–35:  issuer_rsa_modulus  (34 limbs)
-//	36:    smt_root
-//	37:    app_id
+// cert_chain RS4096 layout: [pk_commit, issuer_modulus[34], smt_root].
 type CertChainRS4096PublicInputs struct {
-	Nullifier        string
 	PkCommit         string
-	IssuerRSAModulus []string // 34 limbs
+	IssuerRSAModulus []string
 	SmtRoot          string
-	AppID            string
 }
 
-// ParseCertChainRS4096 parses the raw CertChain signal slice from PublicSignals
-// into named fields. Returns an error if the slice has fewer than 38 elements.
 func ParseCertChainRS4096(signals []string) (*CertChainRS4096PublicInputs, error) {
-	const required = 38
+	const required = 36
 	if len(signals) != required {
 		return nil, fmt.Errorf("cert_chain RS4096 requires exactly %d public inputs, got %d", required, len(signals))
 	}
 	return &CertChainRS4096PublicInputs{
-		Nullifier:        signals[0],
-		PkCommit:         signals[1],
-		IssuerRSAModulus: signals[2:36],
-		SmtRoot:          signals[36],
-		AppID:            signals[37],
+		PkCommit:         signals[0],
+		IssuerRSAModulus: signals[1:35],
+		SmtRoot:          signals[35],
 	}, nil
 }
 
-// DeviceSigPublicInputs holds the named public outputs from the device-sig circuit.
-//
-// Layout:
-//
-//	0:  pk_commit
-//	1:  packed_tbs  (tbs_hex bytes packed 31 bytes per field element, single field element)
+// device_sig layout: [pk_commit, nullifier, app_id_packed, challenge].
+// `app_id_packed` is the 31 leading bytes of `tbs` packed little-endian into one
+// field element (matches the circuit's `tbs[0..31]` recovery). `challenge` is
+// the verifier-issued per-session field element bound by a Semaphore-style
+// dummy square.
 type DeviceSigPublicInputs struct {
-	PkCommit  string
-	PackedTBS string
+	PkCommit     string
+	Nullifier    string
+	AppIDPacked  string
+	Challenge    string
 }
 
-// ParseDeviceSig parses the raw DeviceSig signal slice into named fields.
+const ExpectedDeviceSigSignals = 4
+
 func ParseDeviceSig(signals []string) (*DeviceSigPublicInputs, error) {
-	if len(signals) < 2 {
-		return nil, fmt.Errorf("device_sig requires at least 2 public inputs, got %d", len(signals))
+	if len(signals) != ExpectedDeviceSigSignals {
+		return nil, fmt.Errorf("device_sig requires exactly %d public inputs, got %d", ExpectedDeviceSigSignals, len(signals))
 	}
 	return &DeviceSigPublicInputs{
-		PkCommit:  signals[0],
-		PackedTBS: signals[1],
+		PkCommit:    signals[0],
+		Nullifier:   signals[1],
+		AppIDPacked: signals[2],
+		Challenge:   signals[3],
 	}, nil
 }
 
-// Challenge unpacks PackedTBS and returns the original challenge string.
-//
-// The packed TBS is a SHA-256 padded message: challenge ASCII bytes followed by
-// a 0x80 padding marker. Everything from 0x80 onwards is discarded.
-func (d *DeviceSigPublicInputs) Challenge() (string, error) {
-	b, err := UnpackBytes([]string{d.PackedTBS})
-	if err != nil {
-		return "", err
+// PackAppIDLE encodes 31 bytes as a little-endian field-element decimal
+// string, matching the circuit's `tbs[i] * 256^i` packing. NOTE: the
+// per-session `challenge` value uses big-endian (see store.CreateChallenge);
+// these two encodings are deliberately different.
+func PackAppIDLE(b []byte) (string, error) {
+	if len(b) != AppIDLen {
+		return "", fmt.Errorf("app_id must be %d bytes, got %d", AppIDLen, len(b))
 	}
-	// SHA-256 padding starts with 0x80; challenge bytes precede it.
-	if i := bytes.IndexByte(b, 0x80); i >= 0 {
-		b = b[:i]
+	rev := make([]byte, AppIDLen)
+	for i := 0; i < AppIDLen; i++ {
+		rev[i] = b[AppIDLen-1-i]
 	}
-	return string(b), nil
+	return new(big.Int).SetBytes(rev).String(), nil
 }
 
-// UnpackBytes reverses the JS packBytes function:
-//
-//	packBytes packs inputBytes 31 bytes per field element as a little-endian integer:
-//	  acc = b[0]*1 + b[1]*256 + … + b[30]*256^30
-//
-// field_to_hex serialises the field element as big-endian hex (32 bytes):
-//
-//	[0x00, b[30], b[29], …, b[1], b[0]]
-//
-// UnpackBytes reverses each 32-byte block back to little-endian, extracts the
-// 31 data bytes [b[0]…b[30]], concatenates them, and trims trailing null padding.
-func UnpackBytes(packedHex []string) ([]byte, error) {
-	const fieldBytes = 32
-	const bytesPerField = 31
-	out := make([]byte, 0, len(packedHex)*bytesPerField)
-
-	for _, h := range packedHex {
-		h = strings.TrimPrefix(h, "0x")
-		if len(h) < 64 {
-			h = strings.Repeat("0", 64-len(h)) + h
-		}
-		b, err := hex.DecodeString(h)
-		if err != nil {
-			return nil, fmt.Errorf("decode hex %q: %w", h, err)
-		}
-		// Reverse big-endian → little-endian to recover original byte layout.
-		for i, j := 0, fieldBytes-1; i < j; i, j = i+1, j-1 {
-			b[i], b[j] = b[j], b[i]
-		}
-		out = append(out, b[:bytesPerField]...)
+// UnpackAppIDHex turns a packed decimal field element back into a 62-char
+// lowercase hex string of the original 31 bytes (little-endian interpretation).
+func UnpackAppIDHex(packed string) (string, error) {
+	s := strings.TrimSpace(packed)
+	base := 10
+	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
+		s = s[2:]
+		base = 16
 	}
-
-	return bytes.TrimRight(out, "\x00"), nil
+	n, ok := new(big.Int).SetString(s, base)
+	if !ok {
+		return "", fmt.Errorf("parse packed app_id %q", packed)
+	}
+	if n.Sign() < 0 {
+		return "", fmt.Errorf("packed app_id is negative")
+	}
+	raw := n.Bytes() // big-endian; leading zeros stripped
+	if len(raw) > AppIDLen {
+		return "", fmt.Errorf("packed app_id exceeds %d bytes", AppIDLen)
+	}
+	// Reverse big-endian raw into low-index positions of out so out[i] holds
+	// byte i of the original message (little-endian, zero-padded on the high
+	// end up to 31 bytes).
+	out := make([]byte, AppIDLen)
+	for i := 0; i < len(raw); i++ {
+		out[i] = raw[len(raw)-1-i]
+	}
+	return hex.EncodeToString(out), nil
 }
 
-// ParsedInputs is the unified, human-readable view of both ZK circuit outputs.
-// It is safe to serialise directly to JSON in API responses.
 type ParsedInputs struct {
-	Challenge        string   `json:"challenge"`
 	PkCommit         string   `json:"pk_commit"`
 	Nullifier        string   `json:"nullifier"`
+	AppID            string   `json:"app_id"`
+	AppIDPacked      string   `json:"app_id_packed"`
+	Challenge        string   `json:"challenge"`
 	IssuerRSAModulus []string `json:"issuer_rsa_modulus"`
 	SmtRoot          string   `json:"smt_root"`
-	AppID            string   `json:"app_id"`
 }
 
-// ParsePublicInputsRS2048 parses raw PublicSignals from an RS2048 link-verify
-// run into a single ParsedInputs value.
 func ParsePublicInputsRS2048(certChain, deviceSig []string) (*ParsedInputs, error) {
 	cc, err := ParseCertChainRS2048(certChain)
 	if err != nil {
@@ -168,22 +137,45 @@ func ParsePublicInputsRS2048(certChain, deviceSig []string) (*ParsedInputs, erro
 	if err != nil {
 		return nil, fmt.Errorf("device_sig: %w", err)
 	}
-	challenge, err := ds.Challenge()
+	appID, err := UnpackAppIDHex(ds.AppIDPacked)
 	if err != nil {
-		return nil, fmt.Errorf("challenge: %w", err)
+		return nil, fmt.Errorf("device_sig: %w", err)
 	}
 	return &ParsedInputs{
-		Challenge:        challenge,
 		PkCommit:         cc.PkCommit,
-		Nullifier:        cc.Nullifier,
+		Nullifier:        ds.Nullifier,
+		AppID:            appID,
+		AppIDPacked:      ds.AppIDPacked,
+		Challenge:        ds.Challenge,
 		IssuerRSAModulus: cc.IssuerRSAModulus,
 		SmtRoot:          cc.SmtRoot,
-		AppID:            cc.AppID,
 	}, nil
 }
 
-// ParsePublicInputs dispatches to the variant parser. Prefer this over the
-// per-variant functions when t is not statically known.
+func ParsePublicInputsRS4096(certChain, deviceSig []string) (*ParsedInputs, error) {
+	cc, err := ParseCertChainRS4096(certChain)
+	if err != nil {
+		return nil, fmt.Errorf("cert_chain: %w", err)
+	}
+	ds, err := ParseDeviceSig(deviceSig)
+	if err != nil {
+		return nil, fmt.Errorf("device_sig: %w", err)
+	}
+	appID, err := UnpackAppIDHex(ds.AppIDPacked)
+	if err != nil {
+		return nil, fmt.Errorf("device_sig: %w", err)
+	}
+	return &ParsedInputs{
+		PkCommit:         cc.PkCommit,
+		Nullifier:        ds.Nullifier,
+		AppID:            appID,
+		AppIDPacked:      ds.AppIDPacked,
+		Challenge:        ds.Challenge,
+		IssuerRSAModulus: cc.IssuerRSAModulus,
+		SmtRoot:          cc.SmtRoot,
+	}, nil
+}
+
 func ParsePublicInputs(signals *PublicSignals, t CertChainType) (*ParsedInputs, error) {
 	if signals == nil {
 		return nil, fmt.Errorf("nil public signals")
@@ -194,29 +186,4 @@ func ParsePublicInputs(signals *PublicSignals, t CertChainType) (*ParsedInputs, 
 	default:
 		return ParsePublicInputsRS2048(signals.CertChain, signals.DeviceSig)
 	}
-}
-
-// ParsePublicInputsRS4096 parses raw PublicSignals from an RS4096 link-verify
-// run into a single ParsedInputs value.
-func ParsePublicInputsRS4096(certChain, deviceSig []string) (*ParsedInputs, error) {
-	cc, err := ParseCertChainRS4096(certChain)
-	if err != nil {
-		return nil, fmt.Errorf("cert_chain: %w", err)
-	}
-	ds, err := ParseDeviceSig(deviceSig)
-	if err != nil {
-		return nil, fmt.Errorf("device_sig: %w", err)
-	}
-	challenge, err := ds.Challenge()
-	if err != nil {
-		return nil, fmt.Errorf("challenge: %w", err)
-	}
-	return &ParsedInputs{
-		Challenge:        challenge,
-		PkCommit:         cc.PkCommit,
-		Nullifier:        cc.Nullifier,
-		IssuerRSAModulus: cc.IssuerRSAModulus,
-		SmtRoot:          cc.SmtRoot,
-		AppID:            cc.AppID,
-	}, nil
 }

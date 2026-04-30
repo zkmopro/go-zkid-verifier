@@ -2,8 +2,8 @@ package verifier
 
 /*
 #cgo LDFLAGS: -lzk_verifier -lm
-#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../lib/aarch64-apple-darwin -Wl,-rpath,${SRCDIR}/../lib/aarch64-apple-darwin -lc++
-#cgo linux LDFLAGS: -L${SRCDIR}/../lib/x86_64-unknown-linux-gnu -Wl,-rpath,${SRCDIR}/../lib/x86_64-unknown-linux-gnu -lstdc++
+#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../lib/aarch64-apple-darwin -Wl,-rpath,${SRCDIR}/../lib/aarch64-apple-darwin -lwitnesscalc_device_sig_rs2048 -lfr -lgmp -lc++
+#cgo linux LDFLAGS: -L${SRCDIR}/../lib/x86_64-unknown-linux-gnu -Wl,-rpath,${SRCDIR}/../lib/x86_64-unknown-linux-gnu -lwitnesscalc_device_sig_rs2048 -lfr -lgmp -lstdc++
 #include <stdint.h>
 #include <stdlib.h>
 

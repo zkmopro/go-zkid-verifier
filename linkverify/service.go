@@ -5,62 +5,37 @@ import (
 	"time"
 
 	"github.com/zkmopro/go-zkid-verifier/store"
+	"github.com/zkmopro/go-zkid-verifier/verifier"
 )
 
-// Service coordinates link verification and persistence.
 type Service struct {
 	verifier ProofVerifier
 	store    store.Store
 }
 
-// ProofVerifier verifies a link request.
 type ProofVerifier interface {
 	Verify(Request) (*Result, error)
+	CheckChallenge(parsed *verifier.ParsedInputs, expected string) *ChallengeOutcome
 }
 
 func NewService(v ProofVerifier, s store.Store) *Service {
 	return &Service{verifier: v, store: s}
 }
 
-// ProcessResult includes verifier output and persistence metadata.
 type ProcessResult struct {
 	*Result
-	Nullifier   string
-	ChallengeID string
-	Persisted   bool
+	Nullifier string
+	Persisted bool
 }
 
-// VerifyAndRecordByProof verifies and records using challenge/nullifier from proof inputs.
-func (s *Service) VerifyAndRecordByProof(ctx context.Context, req Request) (*ProcessResult, error) {
-	r, err := s.verifier.Verify(req)
-	if err != nil {
-		return nil, err
-	}
-	if !r.Verified {
-		return &ProcessResult{Result: r}, nil
-	}
-
-	c, err := s.store.GetChallengeByHex(ctx, r.Parsed.Challenge)
-	if err != nil {
-		return nil, err
-	}
-	if c == nil {
-		return nil, store.ErrChallengeNotFound
-	}
-	if time.Now().After(c.ExpiresAt) {
-		return nil, store.ErrChallengeExpired
-	}
-
-	return s.finalize(ctx, c.ID, r.Parsed.Nullifier, req.ProofType, r)
-}
-
-// VerifyAndRecordByID verifies and records using caller-provided challengeID/nullifier.
-func (s *Service) VerifyAndRecordByID(
+// Early-rejects expired challenges to skip the (expensive) FFI verify; the
+// in-TX expiry check inside store.VerifyAndRecord remains authoritative.
+func (s *Service) VerifyAndRecord(
 	ctx context.Context,
-	challengeID, nullifier string,
+	challenge string,
 	req Request,
 ) (*ProcessResult, error) {
-	c, err := s.store.GetChallenge(ctx, challengeID)
+	c, err := s.store.GetChallenge(ctx, challenge)
 	if err != nil {
 		return nil, err
 	}
@@ -76,29 +51,33 @@ func (s *Service) VerifyAndRecordByID(
 		return nil, err
 	}
 	if !r.Verified {
-		return &ProcessResult{
-			Result:      r,
-			Nullifier:   nullifier,
-			ChallengeID: challengeID,
-		}, nil
+		nullifier := ""
+		if r.Parsed != nil {
+			nullifier = r.Parsed.Nullifier
+		}
+		return &ProcessResult{Result: r, Nullifier: nullifier}, nil
 	}
 
-	return s.finalize(ctx, challengeID, nullifier, req.ProofType, r)
+	// The challenge bound into the proof must match the value we issued.
+	outcome := s.verifier.CheckChallenge(r.Parsed, c.Challenge)
+	r.Challenge = outcome
+	if !outcome.Match {
+		r.Verified = false
+		r.Reason = ReasonChallengeMismatch
+		return &ProcessResult{Result: r, Nullifier: r.Parsed.Nullifier}, nil
+	}
+
+	return s.finalize(ctx, challenge, r.Parsed.Nullifier, req.ProofType, r)
 }
 
-// finalize records the verification and returns the composed process result.
 func (s *Service) finalize(
 	ctx context.Context,
-	challengeID, nullifier string,
+	challenge, nullifier string,
 	pt ProofType,
 	r *Result,
 ) (*ProcessResult, error) {
-	res := &ProcessResult{
-		Result:      r,
-		Nullifier:   nullifier,
-		ChallengeID: challengeID,
-	}
-	if err := s.store.VerifyAndRecord(ctx, nullifier, challengeID, nil, pt.StoreKey()); err != nil {
+	res := &ProcessResult{Result: r, Nullifier: nullifier}
+	if err := s.store.VerifyAndRecord(ctx, nullifier, challenge, nil, pt.StoreKey()); err != nil {
 		return res, err
 	}
 	res.Persisted = true

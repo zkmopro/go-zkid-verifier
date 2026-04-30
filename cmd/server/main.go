@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/joho/godotenv"
 	"github.com/zkmopro/go-zkid-verifier/challenge"
@@ -21,6 +23,7 @@ import (
 	pb "github.com/zkmopro/go-zkid-verifier/proto/zkid/v1"
 	"github.com/zkmopro/go-zkid-verifier/smtroot"
 	"github.com/zkmopro/go-zkid-verifier/store"
+	verifierpkg "github.com/zkmopro/go-zkid-verifier/verifier"
 	"google.golang.org/grpc"
 )
 
@@ -53,9 +56,25 @@ func main() {
 		corsOrigin = "*"
 	}
 
-	appID, ok := os.LookupEnv("APP_ID")
-	if !ok {
-		appID = "0"
+	appID := os.Getenv("APP_ID")
+	if appID == "" {
+		log.Fatal("APP_ID env var is required")
+	}
+	if l := len(appID); l != 2*store.AppIDLen {
+		log.Fatalf("APP_ID must be %d hex chars (got %d)", 2*store.AppIDLen, l)
+	}
+	appIDBytes, err := hex.DecodeString(appID)
+	if err != nil {
+		log.Fatalf("APP_ID is not valid hex: %v", err)
+	}
+	// HiPKI /sign takes a UTF-8 string; reject non-UTF-8 APP_ID at boot rather
+	// than letting the prover bail mid-flow.
+	if !utf8.Valid(appIDBytes) {
+		log.Fatalf("APP_ID hex-decodes to non-UTF-8 bytes; HiPKI /sign requires a UTF-8 payload. Regenerate with: APP_ID=$(LC_ALL=C tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 31 | xxd -p -c 62)")
+	}
+	appIDPacked, err := verifierpkg.PackAppIDLE(appIDBytes)
+	if err != nil {
+		log.Fatalf("APP_ID pack: %v", err)
 	}
 
 	debugToken := os.Getenv("DEBUG_TOKEN")
@@ -84,11 +103,12 @@ func main() {
 		log.Fatalf("issuer cert provider: %v", err)
 	}
 	verifier := &linkverify.Verifier{
-		KeysDir:       keysDir,
-		SmtRoot:       provider,
-		IssuerCert:    issuerProvider,
-		ExpectedAppID: appID,
-		Logger:        smtroot.DefaultLogger{},
+		KeysDir:             keysDir,
+		SmtRoot:             provider,
+		IssuerCert:          issuerProvider,
+		ExpectedAppID:       appID,
+		ExpectedAppIDPacked: appIDPacked,
+		Logger:              smtroot.DefaultLogger{},
 	}
 	if provider != nil {
 		provider.Start(ctx)
@@ -106,18 +126,14 @@ func main() {
 		log.Fatalf("gRPC listen on %s: %v", grpcAddr, err)
 	}
 
-	mux := httpapi.NewRouter(service, s, provider, issuerProvider, debugToken)
+	mux := httpapi.NewRouter(service, s, provider, issuerProvider, appID, debugToken)
 
 	fmt.Printf("=== zkID Verifier Server ===\n")
 	fmt.Printf("HTTP listening on %s\n", httpAddr)
 	fmt.Printf("gRPC listening on %s\n", grpcAddr)
 	fmt.Printf("Database: %s\n", dbPath)
 	fmt.Printf("Keys directory: %s\n", keysDir)
-	appIDDisplay := fmt.Sprintf("%q", appID)
-	if appID == "" {
-		appIDDisplay = "disabled"
-	}
-	fmt.Printf("APP_ID enforcement: %s\n", appIDDisplay)
+	fmt.Printf("APP_ID: %s\n", appID)
 	fmt.Printf("REST Endpoints:\n")
 	fmt.Printf("  POST /challenge              - Generate a new challenge\n")
 	fmt.Printf("  GET  /challenge/{id}         - Retrieve a challenge\n")
@@ -133,7 +149,7 @@ func main() {
 		grpcServer := grpc.NewServer(
 			grpc.MaxRecvMsgSize(2 * 1024 * 1024),
 		)
-		pb.RegisterZkIDVerifierServer(grpcServer, zkgrpc.NewServer(service, s))
+		pb.RegisterZkIDVerifierServer(grpcServer, zkgrpc.NewServer(service, s, appID))
 		log.Printf("gRPC server started on %s", grpcAddr)
 		if err := grpcServer.Serve(grpcLis); err != nil {
 			log.Printf("gRPC serve error: %v", err)

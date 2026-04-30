@@ -3,10 +3,9 @@ package store
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -15,23 +14,21 @@ import (
 
 const schema = `
 CREATE TABLE IF NOT EXISTS challenges (
-    id          TEXT     PRIMARY KEY,
-    bytes_hex   TEXT     NOT NULL,
-    bytes_raw   BLOB     NOT NULL,
+    challenge   TEXT     PRIMARY KEY,
     issued_at   DATETIME NOT NULL DEFAULT (datetime('now')),
     expires_at  DATETIME NOT NULL,
     consumed_at DATETIME
 );
 
 CREATE TABLE IF NOT EXISTS verifications (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    nullifier    TEXT    NOT NULL UNIQUE,
-    id_verified  BOOLEAN NOT NULL DEFAULT 1,
-    id_proof     TEXT,
-    proof_type   TEXT    NOT NULL DEFAULT 'tbs',
-    verified_at  DATETIME NOT NULL DEFAULT (datetime('now')),
-    challenge_id TEXT    NOT NULL,
-    FOREIGN KEY (challenge_id) REFERENCES challenges(id)
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    nullifier   TEXT    NOT NULL UNIQUE,
+    id_verified BOOLEAN NOT NULL DEFAULT 1,
+    id_proof    TEXT,
+    proof_type  TEXT    NOT NULL DEFAULT 'tbs',
+    verified_at DATETIME NOT NULL DEFAULT (datetime('now')),
+    challenge   TEXT    NOT NULL,
+    FOREIGN KEY (challenge) REFERENCES challenges(challenge)
 );
 `
 
@@ -63,9 +60,9 @@ func NewSQLiteStore(dbPath string, ttl time.Duration) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("run migrations: %w", err)
 	}
 
-	// Add proof_type column if it was created before this column existed.
+	// Idempotent ALTER for older databases. SQLite returns "duplicate column
+	// name" when the column already exists; ignore that, surface anything else.
 	if _, err := db.Exec(`ALTER TABLE verifications ADD COLUMN proof_type TEXT NOT NULL DEFAULT 'tbs'`); err != nil {
-		// SQLite returns an error if the column already exists; ignore it.
 		if !strings.Contains(err.Error(), "duplicate column name") {
 			db.Close()
 			return nil, fmt.Errorf("migrate verifications.proof_type: %w", err)
@@ -81,103 +78,58 @@ func (s *SQLiteStore) Close() error {
 }
 
 func (s *SQLiteStore) CreateChallenge(ctx context.Context) (*Challenge, error) {
-	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return nil, fmt.Errorf("generate nonce: %w", err)
+	var seed [16]byte
+	if _, err := rand.Read(seed[:]); err != nil {
+		return nil, fmt.Errorf("generate challenge seed: %w", err)
 	}
-	nonce[15] &= 0xF0 // zero last nibble so BytesHex is exactly 31 hex chars
-
-	idHash := sha256.Sum256(nonce[:])
-	id := hex.EncodeToString(idHash[:16])
-	bytesHex := hex.EncodeToString(nonce[:])[:31]
+	// 16 random bytes interpreted big-endian as a decimal field-element
+	// string. Used as both the session lookup key and the value bound into
+	// the device-sig proof.
+	challenge := new(big.Int).SetBytes(seed[:]).String()
 	expiresAt := time.Now().Add(s.ttl)
 
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO challenges (id, bytes_hex, bytes_raw, expires_at) VALUES (?, ?, ?, ?)`,
-		id, bytesHex, nonce[:], expiresAt.UTC().Format(time.RFC3339),
+		`INSERT INTO challenges (challenge, expires_at) VALUES (?, ?)`,
+		challenge, expiresAt.UTC().Format(time.RFC3339),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert challenge: %w", err)
 	}
 
-	return &Challenge{
-		ID:        id,
-		Bytes:     nonce,
-		BytesHex:  bytesHex,
-		ExpiresAt: expiresAt,
-	}, nil
+	return &Challenge{Challenge: challenge, ExpiresAt: expiresAt}, nil
 }
 
-func (s *SQLiteStore) GetChallenge(ctx context.Context, id string) (*Challenge, error) {
+func (s *SQLiteStore) GetChallenge(ctx context.Context, challenge string) (*Challenge, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, bytes_hex, bytes_raw, expires_at FROM challenges WHERE id = ?`, id,
+		`SELECT challenge, expires_at FROM challenges WHERE challenge = ?`, challenge,
 	)
-
 	var c Challenge
-	var rawBytes []byte
 	var expiresAtStr string
-	if err := row.Scan(&c.ID, &c.BytesHex, &rawBytes, &expiresAtStr); err != nil {
+	if err := row.Scan(&c.Challenge, &expiresAtStr); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("scan challenge: %w", err)
 	}
-
-	if len(rawBytes) != 16 {
-		return nil, fmt.Errorf("corrupt challenge: bytes_raw has %d bytes, want 16", len(rawBytes))
-	}
-	copy(c.Bytes[:], rawBytes)
-
 	expiresAt, parseErr := parseTime(expiresAtStr)
 	if parseErr != nil {
 		return nil, fmt.Errorf("parse expires_at: %w", parseErr)
 	}
 	c.ExpiresAt = expiresAt
-
 	return &c, nil
 }
 
-func (s *SQLiteStore) GetChallengeByHex(ctx context.Context, bytesHex string) (*Challenge, error) {
-	row := s.db.QueryRowContext(ctx,
-		`SELECT id, bytes_hex, bytes_raw, expires_at FROM challenges WHERE bytes_hex = ?`, bytesHex,
-	)
-
-	var c Challenge
-	var rawBytes []byte
-	var expiresAtStr string
-	if err := row.Scan(&c.ID, &c.BytesHex, &rawBytes, &expiresAtStr); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("scan challenge: %w", err)
-	}
-
-	if len(rawBytes) != 16 {
-		return nil, fmt.Errorf("corrupt challenge: bytes_raw has %d bytes, want 16", len(rawBytes))
-	}
-	copy(c.Bytes[:], rawBytes)
-
-	expiresAt, parseErr := parseTime(expiresAtStr)
-	if parseErr != nil {
-		return nil, fmt.Errorf("parse expires_at: %w", parseErr)
-	}
-	c.ExpiresAt = expiresAt
-
-	return &c, nil
-}
-
-func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challengeID string, proof *string, proofType string) error {
+func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challenge string, proof *string, proofType string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback()
 
-	// Check challenge exists and read its state
 	var expiresAtStr string
 	var consumedAt sql.NullString
 	err = tx.QueryRowContext(ctx,
-		`SELECT expires_at, consumed_at FROM challenges WHERE id = ?`, challengeID,
+		`SELECT expires_at, consumed_at FROM challenges WHERE challenge = ?`, challenge,
 	).Scan(&expiresAtStr, &consumedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -186,7 +138,6 @@ func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challengeI
 		return fmt.Errorf("query challenge: %w", err)
 	}
 
-	// Check expiry
 	expiresAt, err := parseTime(expiresAtStr)
 	if err != nil {
 		return fmt.Errorf("parse expires_at: %w", err)
@@ -194,13 +145,10 @@ func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challengeI
 	if time.Now().After(expiresAt) {
 		return ErrChallengeExpired
 	}
-
-	// Check consumed
 	if consumedAt.Valid {
 		return ErrChallengeConsumed
 	}
 
-	// Insert verification — UNIQUE constraint on nullifier handles duplicates
 	var proofVal sql.NullString
 	if proof != nil {
 		proofVal = sql.NullString{String: *proof, Valid: true}
@@ -209,8 +157,8 @@ func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challengeI
 		proofType = "tbs"
 	}
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO verifications (nullifier, id_verified, id_proof, proof_type, challenge_id) VALUES (?, 1, ?, ?, ?)`,
-		nullifier, proofVal, proofType, challengeID,
+		`INSERT INTO verifications (nullifier, id_verified, id_proof, proof_type, challenge) VALUES (?, 1, ?, ?, ?)`,
+		nullifier, proofVal, proofType, challenge,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -219,9 +167,8 @@ func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challengeI
 		return fmt.Errorf("insert verification: %w", err)
 	}
 
-	// Mark challenge as consumed
 	_, err = tx.ExecContext(ctx,
-		`UPDATE challenges SET consumed_at = datetime('now') WHERE id = ?`, challengeID,
+		`UPDATE challenges SET consumed_at = datetime('now') WHERE challenge = ?`, challenge,
 	)
 	if err != nil {
 		return fmt.Errorf("consume challenge: %w", err)
@@ -232,7 +179,7 @@ func (s *SQLiteStore) VerifyAndRecord(ctx context.Context, nullifier, challengeI
 
 // CleanDB wipes all rows from verifications and challenges in a single
 // transaction. Verifications are deleted first to satisfy the FK from
-// verifications.challenge_id → challenges.id. Schema is preserved.
+// verifications.challenge → challenges.challenge. Schema is preserved.
 func (s *SQLiteStore) CleanDB(ctx context.Context) (int64, int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

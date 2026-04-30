@@ -18,10 +18,11 @@ type Server struct {
 	pb.UnimplementedZkIDVerifierServer
 	service *linkverify.Service
 	store   store.Store
+	appID   string
 }
 
-func NewServer(service *linkverify.Service, s store.Store) *Server {
-	return &Server{service: service, store: s}
+func NewServer(service *linkverify.Service, s store.Store, appID string) *Server {
+	return &Server{service: service, store: s, appID: appID}
 }
 
 func (s *Server) CreateChallenge(ctx context.Context, _ *pb.CreateChallengeRequest) (*pb.CreateChallengeResponse, error) {
@@ -31,17 +32,17 @@ func (s *Server) CreateChallenge(ctx context.Context, _ *pb.CreateChallengeReque
 		return nil, status.Errorf(codes.Internal, "failed to create challenge")
 	}
 	return &pb.CreateChallengeResponse{
-		ChallengeId:    c.ID,
-		ChallengeBytes: c.BytesHex,
-		ExpiresAt:      c.ExpiresAt.Format(time.RFC3339),
+		Challenge: c.Challenge,
+		AppId:     s.appID,
+		ExpiresAt: c.ExpiresAt.Format(time.RFC3339),
 	}, nil
 }
 
 func (s *Server) GetChallenge(ctx context.Context, req *pb.GetChallengeRequest) (*pb.GetChallengeResponse, error) {
-	if req.ChallengeId == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "challenge_id is required")
+	if req.Challenge == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "challenge is required")
 	}
-	c, err := s.store.GetChallenge(ctx, req.ChallengeId)
+	c, err := s.store.GetChallenge(ctx, req.Challenge)
 	if err != nil {
 		log.Printf("get challenge error: %v", err)
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -53,21 +54,18 @@ func (s *Server) GetChallenge(ctx context.Context, req *pb.GetChallengeRequest) 
 		return nil, status.Errorf(codes.FailedPrecondition, "challenge expired")
 	}
 	return &pb.GetChallengeResponse{
-		ChallengeId:    c.ID,
-		ChallengeBytes: c.BytesHex,
-		ExpiresAt:      c.ExpiresAt.Format(time.RFC3339),
+		Challenge: c.Challenge,
+		AppId:     s.appID,
+		ExpiresAt: c.ExpiresAt.Format(time.RFC3339),
 	}, nil
 }
 
 func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb.LinkVerifyResponse, error) {
-	if req.ChallengeId == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "challenge_id is required")
+	if req.Challenge == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "challenge is required")
 	}
 	if len(req.CertChainProof) == 0 || len(req.DeviceSigProof) == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "cert_chain_proof and device_sig_proof are required")
-	}
-	if req.Nullifier == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "nullifier is required")
 	}
 
 	pt, err := linkverify.ParseProofType(req.CertChainType)
@@ -75,13 +73,17 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	result, err := s.service.VerifyAndRecordByID(ctx, req.ChallengeId, req.Nullifier, linkverify.Request{
+	result, err := s.service.VerifyAndRecord(ctx, req.Challenge, linkverify.Request{
 		CertChainProof: req.CertChainProof,
 		DeviceSigProof: req.DeviceSigProof,
 		ProofType:      pt,
 	})
 	if err != nil {
-		return nil, mapServiceError(err, req.Nullifier)
+		nullifier := ""
+		if result != nil {
+			nullifier = result.Nullifier
+		}
+		return nil, mapServiceError(err, nullifier)
 	}
 
 	if !result.Verified {
@@ -92,6 +94,7 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 			SmtRoot:       smtRootOutcomeToProto(result.SmtRoot),
 			IssuerModulus: issuerModulusOutcomeToProto(result.IssuerModulus),
 			AppId:         appIDOutcomeToProto(result.AppID),
+			Challenge:     challengeOutcomeToProto(result.Challenge),
 		}, nil
 	}
 
@@ -103,6 +106,7 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 		SmtRoot:       smtRootOutcomeToProto(result.SmtRoot),
 		IssuerModulus: issuerModulusOutcomeToProto(result.IssuerModulus),
 		AppId:         appIDOutcomeToProto(result.AppID),
+		Challenge:     challengeOutcomeToProto(result.Challenge),
 	}, nil
 }
 
@@ -144,6 +148,17 @@ func appIDOutcomeToProto(o *linkverify.AppIDOutcome) *pb.AppIDOutcome {
 		return nil
 	}
 	return &pb.AppIDOutcome{
+		Match:    o.Match,
+		Expected: o.Expected,
+		Observed: o.Observed,
+	}
+}
+
+func challengeOutcomeToProto(o *linkverify.ChallengeOutcome) *pb.ChallengeOutcome {
+	if o == nil {
+		return nil
+	}
+	return &pb.ChallengeOutcome{
 		Match:    o.Match,
 		Expected: o.Expected,
 		Observed: o.Observed,

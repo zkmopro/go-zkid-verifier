@@ -14,38 +14,37 @@ var (
 	ErrChallengeConsumed  = errors.New("challenge already consumed")
 )
 
-// Challenge represents a server-generated nonce for the ZK verification flow.
+// AppIDLen is the wire length of app_id in bytes.
+const AppIDLen = 31
+
+// Challenge is a per-session replay nonce: a decimal field element that is
+// both the session key the client submits to /link-verify and the value bound
+// into the device-sig proof.
 type Challenge struct {
-	ID        string    `json:"challenge_id"`
-	Bytes     [16]byte  `json:"-"`
-	BytesHex  string    `json:"challenge_bytes"`
+	Challenge string    `json:"challenge"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
 // VerificationRecord holds the persistent result of a successful verification.
 type VerificationRecord struct {
-	Nullifier   string    `json:"nullifier"`
-	IDVerified  bool      `json:"id_verified"`
-	IDProof     *string   `json:"id_proof,omitempty"`
-	ProofType   string    `json:"proof_type"`
-	VerifiedAt  time.Time `json:"verified_at"`
-	ChallengeID string    `json:"challenge_id"`
+	Nullifier  string    `json:"nullifier"`
+	IDVerified bool      `json:"id_verified"`
+	IDProof    *string   `json:"id_proof,omitempty"`
+	ProofType  string    `json:"proof_type"`
+	VerifiedAt time.Time `json:"verified_at"`
+	Challenge  string    `json:"challenge"`
 }
 
 // Store is the combined interface for challenge + verification persistence.
 // BBS teams implement this interface against their own DB.
 // The SQLite implementation in sqlite.go is the reference.
 type Store interface {
-	// CreateChallenge generates and persists a new 32-byte challenge nonce.
+	// CreateChallenge generates and persists a new challenge.
 	CreateChallenge(ctx context.Context) (*Challenge, error)
 
-	// GetChallenge retrieves a challenge by ID.
+	// GetChallenge retrieves a challenge by its value.
 	// Returns nil, nil if not found. Does NOT check expiry (caller's responsibility).
-	GetChallenge(ctx context.Context, id string) (*Challenge, error)
-
-	// GetChallengeByHex retrieves a challenge by its hex value (bytes_hex column).
-	// Returns nil, nil if not found. Does NOT check expiry (caller's responsibility).
-	GetChallengeByHex(ctx context.Context, bytesHex string) (*Challenge, error)
+	GetChallenge(ctx context.Context, challenge string) (*Challenge, error)
 
 	// VerifyAndRecord atomically validates the challenge, records a verification,
 	// and consumes the challenge inside a single DB transaction.
@@ -55,7 +54,7 @@ type Store interface {
 	//
 	// Returns sentinel errors: ErrChallengeNotFound, ErrChallengeExpired,
 	// ErrChallengeConsumed, ErrDuplicateNullifier.
-	VerifyAndRecord(ctx context.Context, nullifier, challengeID string, proof *string, proofType string) error
+	VerifyAndRecord(ctx context.Context, nullifier, challenge string, proof *string, proofType string) error
 
 	// CleanDB wipes all rows from challenges and verifications in a single
 	// transaction. Schema is preserved. Returns the number of rows deleted from

@@ -1,58 +1,116 @@
 package verifier
 
-import "testing"
-
-// packedTBS is the field element for the 31-byte challenge "e775f2805fb993e05a208dbff15d1c1"
-// packed little-endian and serialised as big-endian hex by field_to_hex.
-const packedTBS = "0x0031633164353166666264383032613530653339396266353038326635373765"
+import (
+	"encoding/hex"
+	"testing"
+)
 
 func TestParseDeviceSig(t *testing.T) {
 	const pkCommit = "0xdeadbeef"
-	signals := []string{pkCommit, packedTBS}
+	const nullifier = "0xfeedface"
+	const challenge = "1234567890"
 
-	ds, err := ParseDeviceSig(signals)
+	// Pack 0x01..0x1f (31 bytes) little-endian into a field element.
+	bytes := make([]byte, AppIDLen)
+	for i := 0; i < AppIDLen; i++ {
+		bytes[i] = byte(i + 1)
+	}
+	packed, err := PackAppIDLE(bytes)
+	if err != nil {
+		t.Fatalf("PackAppIDLE: %v", err)
+	}
+
+	ds, err := ParseDeviceSig([]string{pkCommit, nullifier, packed, challenge})
 	if err != nil {
 		t.Fatalf("ParseDeviceSig: %v", err)
 	}
 	if ds.PkCommit != pkCommit {
 		t.Errorf("PkCommit: got %s, want %s", ds.PkCommit, pkCommit)
 	}
-	if ds.PackedTBS != packedTBS {
-		t.Errorf("PackedTBS: got %s, want %s", ds.PackedTBS, packedTBS)
+	if ds.Nullifier != nullifier {
+		t.Errorf("Nullifier: got %s, want %s", ds.Nullifier, nullifier)
 	}
-
-	challenge, err := ds.Challenge()
-	if err != nil {
-		t.Fatalf("Challenge(): %v", err)
+	if ds.AppIDPacked != packed {
+		t.Errorf("AppIDPacked: got %s, want %s", ds.AppIDPacked, packed)
 	}
-	const want = "e775f2805fb993e05a208dbff15d1c1"
-	if challenge != want {
-		t.Errorf("Challenge(): got %q, want %q", challenge, want)
+	if ds.Challenge != challenge {
+		t.Errorf("Challenge: got %s, want %s", ds.Challenge, challenge)
 	}
 }
 
-func TestParseDeviceSigTooFewSignals(t *testing.T) {
-	if _, err := ParseDeviceSig([]string{"only_one"}); err == nil {
-		t.Error("expected error for fewer than 2 signals")
+func TestParseDeviceSigStrictLength(t *testing.T) {
+	if _, err := ParseDeviceSig(make([]string, 3)); err == nil {
+		t.Error("expected error for 3 signals (need 4)")
 	}
+	if _, err := ParseDeviceSig(make([]string, 5)); err == nil {
+		t.Error("expected error for 5 signals (need 4)")
+	}
+}
+
+func TestPackUnpackAppIDRoundTrip(t *testing.T) {
+	cases := [][]byte{
+		bytesIota(AppIDLen),
+		bytesAll(0xff),
+		append([]byte{0x00, 0x00}, bytesIota(AppIDLen-2)...),
+	}
+	for _, b := range cases {
+		packed, err := PackAppIDLE(b)
+		if err != nil {
+			t.Fatalf("PackAppIDLE: %v", err)
+		}
+		got, err := UnpackAppIDHex(packed)
+		if err != nil {
+			t.Fatalf("UnpackAppIDHex: %v", err)
+		}
+		if got != hex.EncodeToString(b) {
+			t.Errorf("round-trip mismatch: got %s, want %s", got, hex.EncodeToString(b))
+		}
+	}
+}
+
+func TestUnpackAppIDRejectsOversize(t *testing.T) {
+	// 32-byte value (overflows the 31-byte budget for app_id).
+	tooBig := "0x" + "01" + repeat("00", 31)
+	if _, err := UnpackAppIDHex(tooBig); err == nil {
+		t.Error("expected error for >31-byte packed value")
+	}
+}
+
+func bytesIota(n int) []byte {
+	out := make([]byte, n)
+	for i := 0; i < n; i++ {
+		out[i] = byte(i + 1)
+	}
+	return out
+}
+
+func bytesAll(v byte) []byte {
+	out := make([]byte, AppIDLen)
+	for i := range out {
+		out[i] = v
+	}
+	return out
+}
+
+func repeat(s string, n int) string {
+	out := ""
+	for i := 0; i < n; i++ {
+		out += s
+	}
+	return out
 }
 
 func TestParseCertChainRS2048(t *testing.T) {
-	signals := make([]string, 21)
-	signals[0] = "0xnullifier"
-	signals[1] = "0xpk"
-	for i := 2; i < 19; i++ {
+	signals := make([]string, 19)
+	signals[0] = "0xpk"
+	for i := 1; i < 18; i++ {
 		signals[i] = "0xlimb"
 	}
-	signals[19] = "0xroot"
-	signals[20] = "0xappid"
+	signals[18] = "0xroot"
 
 	cc, err := ParseCertChainRS2048(signals)
 	if err != nil {
 		t.Fatalf("ParseCertChainRS2048: %v", err)
-	}
-	if cc.Nullifier != "0xnullifier" {
-		t.Errorf("Nullifier: got %q", cc.Nullifier)
 	}
 	if cc.PkCommit != "0xpk" {
 		t.Errorf("PkCommit: got %q", cc.PkCommit)
@@ -63,36 +121,31 @@ func TestParseCertChainRS2048(t *testing.T) {
 	if cc.SmtRoot != "0xroot" {
 		t.Errorf("SmtRoot: got %q", cc.SmtRoot)
 	}
-	if cc.AppID != "0xappid" {
-		t.Errorf("AppID: got %q", cc.AppID)
-	}
 }
 
 func TestParseCertChainRS2048StrictLength(t *testing.T) {
-	if _, err := ParseCertChainRS2048(make([]string, 20)); err == nil {
-		t.Error("expected error for 20 signals (need exactly 21)")
+	if _, err := ParseCertChainRS2048(make([]string, 18)); err == nil {
+		t.Error("expected error for 18 signals (need exactly 19)")
 	}
-	if _, err := ParseCertChainRS2048(make([]string, 22)); err == nil {
-		t.Error("expected error for 22 signals (need exactly 21)")
+	if _, err := ParseCertChainRS2048(make([]string, 20)); err == nil {
+		t.Error("expected error for 20 signals (need exactly 19)")
 	}
 }
 
 func TestParseCertChainRS4096(t *testing.T) {
-	signals := make([]string, 38)
-	signals[0] = "0xnullifier"
-	signals[1] = "0xpk"
-	for i := 2; i < 36; i++ {
+	signals := make([]string, 36)
+	signals[0] = "0xpk"
+	for i := 1; i < 35; i++ {
 		signals[i] = "0xlimb"
 	}
-	signals[36] = "0xroot"
-	signals[37] = "0xappid"
+	signals[35] = "0xroot"
 
 	cc, err := ParseCertChainRS4096(signals)
 	if err != nil {
 		t.Fatalf("ParseCertChainRS4096: %v", err)
 	}
-	if cc.Nullifier != "0xnullifier" {
-		t.Errorf("Nullifier: got %q", cc.Nullifier)
+	if cc.PkCommit != "0xpk" {
+		t.Errorf("PkCommit: got %q", cc.PkCommit)
 	}
 	if len(cc.IssuerRSAModulus) != 34 {
 		t.Errorf("IssuerRSAModulus length: got %d, want 34", len(cc.IssuerRSAModulus))
@@ -100,16 +153,13 @@ func TestParseCertChainRS4096(t *testing.T) {
 	if cc.SmtRoot != "0xroot" {
 		t.Errorf("SmtRoot: got %q", cc.SmtRoot)
 	}
-	if cc.AppID != "0xappid" {
-		t.Errorf("AppID: got %q", cc.AppID)
-	}
 }
 
 func TestParseCertChainRS4096StrictLength(t *testing.T) {
-	if _, err := ParseCertChainRS4096(make([]string, 37)); err == nil {
-		t.Error("expected error for 37 signals (need exactly 38)")
+	if _, err := ParseCertChainRS4096(make([]string, 35)); err == nil {
+		t.Error("expected error for 35 signals (need exactly 36)")
 	}
-	if _, err := ParseCertChainRS4096(make([]string, 39)); err == nil {
-		t.Error("expected error for 39 signals (need exactly 38)")
+	if _, err := ParseCertChainRS4096(make([]string, 37)); err == nil {
+		t.Error("expected error for 37 signals (need exactly 36)")
 	}
 }

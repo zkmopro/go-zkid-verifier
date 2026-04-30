@@ -1,9 +1,8 @@
 package linkverify
 
 import (
+	"crypto/subtle"
 	"fmt"
-	"math/big"
-	"strings"
 	"time"
 
 	"github.com/zkmopro/go-zkid-verifier/issuercert"
@@ -11,13 +10,13 @@ import (
 	"github.com/zkmopro/go-zkid-verifier/verifier"
 )
 
-
 type Verifier struct {
-	KeysDir       string
-	SmtRoot       *smtroot.Provider
-	IssuerCert    *issuercert.Provider
-	ExpectedAppID string
-	Logger        smtroot.Logger
+	KeysDir             string
+	SmtRoot             *smtroot.Provider
+	IssuerCert          *issuercert.Provider
+	ExpectedAppID       string // 62-char lowercase hex; for response display
+	ExpectedAppIDPacked string // little-endian packed decimal; matched constant-time
+	Logger              smtroot.Logger
 }
 
 // Result holds everything the handler needs to respond.
@@ -29,6 +28,7 @@ type Result struct {
 	SmtRoot       *SmtRootOutcome
 	IssuerModulus *IssuerModulusOutcome
 	AppID         *AppIDOutcome
+	Challenge     *ChallengeOutcome
 }
 
 // SmtRootOutcome is the outcome of the proof-vs-trusted-root comparison.
@@ -52,6 +52,14 @@ type IssuerModulusOutcome struct {
 }
 
 type AppIDOutcome struct {
+	Match    bool   `json:"match"`
+	Expected string `json:"expected"`
+	Observed string `json:"observed"`
+}
+
+// ChallengeOutcome reports whether the per-session challenge in the device-sig
+// proof matches the value the verifier issued for this challenge.
+type ChallengeOutcome struct {
 	Match    bool   `json:"match"`
 	Expected string `json:"expected"`
 	Observed string `json:"observed"`
@@ -101,8 +109,8 @@ func (v *Verifier) Verify(req Request) (*Result, error) {
 		}
 	}
 
-	if v.ExpectedAppID != "" {
-		outcome := checkAppID(parsed, v.ExpectedAppID, v.Logger)
+	if v.ExpectedAppIDPacked != "" {
+		outcome := checkAppID(parsed, v.ExpectedAppID, v.ExpectedAppIDPacked, v.Logger)
 		res.AppID = outcome
 		if !outcome.Match && res.Reason == "" {
 			res.Verified = false
@@ -110,6 +118,28 @@ func (v *Verifier) Verify(req Request) (*Result, error) {
 		}
 	}
 	return res, nil
+}
+
+// CheckChallenge compares the per-session challenge in the proof against the
+// value issued for this challenge (constant-time). Lives on Verifier so
+// the service layer can reuse it after the FFI verify completes.
+func (v *Verifier) CheckChallenge(parsed *verifier.ParsedInputs, expected string) *ChallengeOutcome {
+	match := subtle.ConstantTimeCompare([]byte(parsed.Challenge), []byte(expected)) == 1
+	outcome := &ChallengeOutcome{
+		Match:    match,
+		Expected: expected,
+		Observed: parsed.Challenge,
+	}
+	level, event := "info", "challenge_check"
+	if !match {
+		level, event = "warn", "challenge_mismatch"
+	}
+	v.Logger.Event(level, event,
+		"expected", outcome.Expected,
+		"observed", outcome.Observed,
+		"match", outcome.Match,
+	)
+	return outcome
 }
 
 func checkSmtRoot(pt ProofType, parsed *verifier.ParsedInputs, provider *smtroot.Provider, logger smtroot.Logger) (*SmtRootOutcome, error) {
@@ -179,14 +209,18 @@ func checkIssuerModulus(pt ProofType, parsed *verifier.ParsedInputs, provider *i
 	return outcome, nil
 }
 
-func checkAppID(parsed *verifier.ParsedInputs, expected string, logger smtroot.Logger) *AppIDOutcome {
+// checkAppID compares the packed field-element form (constant-time on the
+// decimal string), but reports the human-readable hex form so the response
+// stays compatible with existing API clients.
+func checkAppID(parsed *verifier.ParsedInputs, expectedHex, expectedPacked string, logger smtroot.Logger) *AppIDOutcome {
+	match := subtle.ConstantTimeCompare([]byte(parsed.AppIDPacked), []byte(expectedPacked)) == 1
 	outcome := &AppIDOutcome{
-		Match:    appIDsEqual(parsed.AppID, expected),
-		Expected: expected,
+		Match:    match,
+		Expected: expectedHex,
 		Observed: parsed.AppID,
 	}
 	level, event := "info", "app_id_check"
-	if !outcome.Match {
+	if !match {
 		level, event = "warn", "app_id_mismatch"
 	}
 	logger.Event(level, event,
@@ -195,37 +229,6 @@ func checkAppID(parsed *verifier.ParsedInputs, expected string, logger smtroot.L
 		"match", outcome.Match,
 	)
 	return outcome
-}
-
-// appIDsEqual compares two app_id strings as field-element values, normalizing
-// across the prover's wire format ("0x" + 64-char zero-padded big-endian hex,
-// e.g. "0x000…000" for 0) and operator-supplied env values ("0", "42", "0x2a").
-// Both forms parse to the same big.Int; mismatches return false rather than
-// erroring so a malformed value naturally fails the check.
-func appIDsEqual(observed, expected string) bool {
-	o, ok := parseAppID(observed)
-	if !ok {
-		return false
-	}
-	e, ok := parseAppID(expected)
-	if !ok {
-		return false
-	}
-	return o.Cmp(e) == 0
-}
-
-func parseAppID(s string) (*big.Int, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return nil, false
-	}
-	base := 10
-	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
-		s = s[2:]
-		base = 16
-	}
-	n, ok := new(big.Int).SetString(s, base)
-	return n, ok
 }
 
 // RS2048 → G2, RS4096 → G3.
