@@ -2,14 +2,15 @@
 
 A Go server that issues challenges and verifies zero-knowledge proofs of Taiwan CDC card identity, over REST and gRPC. Proofs come from the [zkID](https://github.com/zkmopro/zkID) circuits on top of [Spartan2](https://github.com/therealyingtong/Spartan2.git) with Hyrax commitments.
 
-Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plus one device-signature proof (RSA-2048) and enforces four things server-side:
+Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plus one device-signature proof (RSA-2048) and enforces five things server-side:
 
 1. The FFI accepts both proofs and their `pk_commit` linkage holds.
 2. The `smt_root` public input matches the current revocation-list root for the issuer ([moica-revocation-smt](https://github.com/moven0831/moica-revocation-smt)).
 3. The `issuer_rsa_modulus` public input matches the RSA modulus of the published MOICA-G2 (RS2048) or MOICA-G3 (RS4096) certificate — i.e. the proof was actually signed by MOICA, not an impostor.
 4. The `app_id` reconstructed from device_sig public values matches the configured `APP_ID` env value (constant-time compare). The prover signs `APP_ID`; the resulting RSA signature derives the cardholder-bound `nullifier` inside the same circuit.
+5. The per-session `challenge` bound into the device-sig proof matches the value `/challenge` issued. The binding is a Semaphore-style dummy square (`challengeSquared <== challenge * challenge`) — see [PR#60 follow-on](https://github.com/zkmopro/zkID/pull/60). Stops replay of pre-generated proofs across sessions.
 
-`APP_ID` is one 31-byte value per relying party, set via env at server startup. `challenge_id` is per-session — a fresh nonce from `/challenge`, submitted with `/link-verify`, that the store consumes on success.
+`APP_ID` is one 31-byte value per relying party, set via env at server startup. `challenge` is per-session — a fresh decimal field element from `/challenge`, submitted with `/link-verify`, that the store consumes on success. The same value is bound into the device-sig proof.
 
 ## Quickstart
 
@@ -54,8 +55,8 @@ curl -s http://localhost:8080/issuer-cert/status | jq .
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/challenge` | Issue a fresh `challenge_id`. Returns `{challenge_id, app_id, expires_at}`, TTL 5 min. |
-| `GET`  | `/challenge/{id}` | Fetch a challenge by ID. |
+| `POST` | `/challenge` | Issue a fresh `challenge`. Returns `{challenge, app_id, expires_at}`, TTL 5 min. |
+| `GET`  | `/challenge/{challenge}` | Fetch a challenge by value. |
 | `POST` | `/link-verify` | Verify a cert-chain + device-sig proof pair. Body limit 2 MB. |
 | `GET`  | `/smt-root/status` | Trusted revocation-root cache snapshot. |
 | `GET`  | `/issuer-cert/status` | Trusted MOICA issuer-cert cache snapshot. |
@@ -67,34 +68,34 @@ No request body — call as a bare `POST`. Success body (200):
 
 ```json
 {
-  "challenge_id": "<32-char hex>",
+  "challenge": "<decimal field element>",
   "app_id": "<62-char hex>",
   "expires_at": "2026-04-29T12:34:56Z"
 }
 ```
 
-`challenge_id` is a fresh 16-byte nonce (32 hex chars) with a 5-minute TTL. `app_id` echoes the server's configured `APP_ID` env so the prover knows which bytes to sign.
+`challenge` is a fresh 16-byte nonce interpreted big-endian as a decimal field element, with a 5-minute TTL. The prover folds it into the device-sig proof and submits it back at `/link-verify`; this is what binds the proof to the session. `app_id` echoes the server's configured `APP_ID` env so the prover knows which bytes to sign.
 
-### `GET /challenge/{id}`
+### `GET /challenge/{challenge}`
 
-Re-fetches a still-live challenge by ID. Response shape is identical to `POST /challenge`. Useful for clients that want to confirm a challenge is still in TTL before kicking off proof generation.
+Re-fetches a still-live challenge by value. Response shape is identical to `POST /challenge`. Useful for clients that want to confirm a challenge is still in TTL before kicking off proof generation.
 
 ### `/challenge` response codes
 
 | Code | Reason / meaning | Notes |
 |---|---|---|
-| `200` | Success — body is `{challenge_id, app_id, expires_at}`. | Both `POST /challenge` and `GET /challenge/{id}`. |
-| `400` | Challenge expired. | `GET /challenge/{id}` only — challenge exists but passed its 5-minute TTL. |
-| `404` | Challenge not found. | `GET /challenge/{id}` only — no live challenge with that ID. |
+| `200` | Success — body is `{challenge, app_id, expires_at}`. | Both `POST /challenge` and `GET /challenge/{challenge}`. |
+| `400` | Challenge expired. | `GET /challenge/{challenge}` only — challenge exists but passed its 5-minute TTL. |
+| `404` | Challenge not found. | `GET /challenge/{challenge}` only — no live challenge with that value. |
 | `500` | Store error. | SQLite read/write failed during create or lookup. |
 
 ### `POST /link-verify`
 
-Request — `challenge_id` is whatever `/challenge` returned; the nullifier is derived server-side from the device_sig proof:
+Request — `challenge` is whatever `/challenge` returned; the nullifier is derived server-side from the device_sig proof:
 
 ```json
 {
-  "challenge_id": "<hex from /challenge>",
+  "challenge": "<decimal from /challenge>",
   "cert_chain_type": "rs2048",
   "cert_chain_proof": "<base64>",
   "device_sig_proof": "<base64>"
@@ -135,10 +136,11 @@ The `smt_root`, `issuer_modulus`, and `app_id` blocks are each present whenever 
 | `200` | `verified=false, reason="proof_invalid"` — FFI rejected the proof. | Record **not** persisted, challenge **not** consumed. |
 | `400` | Request body malformed or missing `cert_chain_proof` / `device_sig_proof` / valid `cert_chain_type`. |  |
 | `400` | Challenge expired. | Challenge exists but passed its 5-minute TTL. |
-| `404` | Challenge not found. | `challenge_id` doesn't match any live challenge. |
+| `404` | Challenge not found. | `challenge` doesn't match any live row. |
 | `409` | `reason="smt_root_mismatch"` | Prover's `smt_root` disagrees with the trusted root — stale client. |
 | `409` | `reason="issuer_modulus_mismatch"` | Prover's issuer modulus doesn't match MOICA-G2/G3 — wrong-issuer proof. |
 | `409` | `reason="app_id_mismatch"` | The proof's `app_id` doesn't match the server's configured `APP_ID` — proof was minted for a different application. |
+| `409` | `reason="challenge_mismatch"` | The proof's bound `challenge` field element doesn't match the value submitted in the request — stale or replayed proof. Nullifier **not** recorded. |
 | `409` | Duplicate nullifier. | Same `nullifier` already verified. Response echoes `nullifier`. |
 | `410` | Challenge already consumed. |  |
 | `503` | Trust-anchor provider unavailable. | SMT root or issuer cert not cached — transient; retry. |
@@ -277,7 +279,7 @@ v := &linkverify.Verifier{
 }
 service := linkverify.NewService(v, sqliteStore)
 
-// Both transports route through the same call. Caller supplies challenge_id;
+// Both transports route through the same call. Caller supplies challenge;
 // nullifier is extracted server-side from the device_sig proof.
 res, err := service.VerifyAndRecord(ctx, challengeID, linkverify.Request{...})
 ```
