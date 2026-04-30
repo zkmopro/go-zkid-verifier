@@ -18,24 +18,26 @@ service ZkIDVerifier {
 message CreateChallengeRequest {}
 
 message CreateChallengeResponse {
-  string challenge_id = 1;
+  // Per-session challenge field element (decimal). Bound into the device-sig
+  // proof via a Semaphore-style dummy square; submitted back at /link-verify.
+  string challenge = 1;
   // Application's stable APP_ID, 62-char lowercase hex.
   string app_id = 2;
   string expires_at = 3;
 }
 
 message GetChallengeRequest {
-  string challenge_id = 1;
+  string challenge = 1;
 }
 
 message GetChallengeResponse {
-  string challenge_id = 1;
+  string challenge = 1;
   string app_id = 2;
   string expires_at = 3;
 }
 
 message LinkVerifyRequest {
-  string challenge_id = 1;
+  string challenge = 1;
   // "rs2048" (default) or "rs4096"
   string cert_chain_type = 2;
   // Binary proof data (no base64 needed in gRPC)
@@ -49,7 +51,8 @@ message LinkVerifyResponse {
   bool id_verified = 3;
   bool persisted = 4;
   string error = 5;
-  // "proof_invalid", "smt_root_mismatch", "issuer_modulus_mismatch", or "app_id_mismatch"; empty when verified=true.
+  // "proof_invalid", "smt_root_mismatch", "issuer_modulus_mismatch",
+  // "app_id_mismatch", or "challenge_mismatch"; empty when verified=true.
   string reason = 6;
   // Populated when SMT root enforcement ran; unset when SMT_ROOT_ENFORCE=disabled.
   SmtRootOutcome smt_root = 7;
@@ -57,6 +60,9 @@ message LinkVerifyResponse {
   IssuerModulusOutcome issuer_modulus = 8;
   // Populated when ExpectedAppID is configured.
   AppIDOutcome app_id = 9;
+  // Populated when the per-session challenge check ran (i.e. the stored
+  // challenge value is non-empty).
+  ChallengeOutcome challenge = 10;
 }
 
 message SmtRootOutcome {
@@ -86,6 +92,13 @@ message IssuerModulusOutcome {
 
 message AppIDOutcome {
   bool match = 1;
+  string expected = 2;
+  string observed = 3;
+}
+
+message ChallengeOutcome {
+  bool match = 1;
+  // Decimal field-element strings (per-session challenge value).
   string expected = 2;
   string observed = 3;
 }

@@ -58,8 +58,10 @@ func (*CreateChallengeRequest) Descriptor() ([]byte, []int) {
 }
 
 type CreateChallengeResponse struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	ChallengeId string                 `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Per-session challenge field element (decimal). Bound into the device-sig
+	// proof via a Semaphore-style dummy square; submitted back at /link-verify.
+	Challenge string `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
 	// Application's stable APP_ID, 62-char lowercase hex.
 	AppId         string `protobuf:"bytes,2,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
 	ExpiresAt     string `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
@@ -97,9 +99,9 @@ func (*CreateChallengeResponse) Descriptor() ([]byte, []int) {
 	return file_proto_zkid_v1_zkid_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *CreateChallengeResponse) GetChallengeId() string {
+func (x *CreateChallengeResponse) GetChallenge() string {
 	if x != nil {
-		return x.ChallengeId
+		return x.Challenge
 	}
 	return ""
 }
@@ -120,7 +122,7 @@ func (x *CreateChallengeResponse) GetExpiresAt() string {
 
 type GetChallengeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ChallengeId   string                 `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
+	Challenge     string                 `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -155,16 +157,16 @@ func (*GetChallengeRequest) Descriptor() ([]byte, []int) {
 	return file_proto_zkid_v1_zkid_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *GetChallengeRequest) GetChallengeId() string {
+func (x *GetChallengeRequest) GetChallenge() string {
 	if x != nil {
-		return x.ChallengeId
+		return x.Challenge
 	}
 	return ""
 }
 
 type GetChallengeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ChallengeId   string                 `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
+	Challenge     string                 `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
 	AppId         string                 `protobuf:"bytes,2,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
 	ExpiresAt     string                 `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -201,9 +203,9 @@ func (*GetChallengeResponse) Descriptor() ([]byte, []int) {
 	return file_proto_zkid_v1_zkid_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *GetChallengeResponse) GetChallengeId() string {
+func (x *GetChallengeResponse) GetChallenge() string {
 	if x != nil {
-		return x.ChallengeId
+		return x.Challenge
 	}
 	return ""
 }
@@ -223,8 +225,8 @@ func (x *GetChallengeResponse) GetExpiresAt() string {
 }
 
 type LinkVerifyRequest struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	ChallengeId string                 `protobuf:"bytes,1,opt,name=challenge_id,json=challengeId,proto3" json:"challenge_id,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Challenge string                 `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
 	// "rs2048" (default) or "rs4096"
 	CertChainType string `protobuf:"bytes,2,opt,name=cert_chain_type,json=certChainType,proto3" json:"cert_chain_type,omitempty"`
 	// Binary proof data (no base64 needed in gRPC)
@@ -264,9 +266,9 @@ func (*LinkVerifyRequest) Descriptor() ([]byte, []int) {
 	return file_proto_zkid_v1_zkid_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *LinkVerifyRequest) GetChallengeId() string {
+func (x *LinkVerifyRequest) GetChallenge() string {
 	if x != nil {
-		return x.ChallengeId
+		return x.Challenge
 	}
 	return ""
 }
@@ -299,14 +301,18 @@ type LinkVerifyResponse struct {
 	IdVerified bool                   `protobuf:"varint,3,opt,name=id_verified,json=idVerified,proto3" json:"id_verified,omitempty"`
 	Persisted  bool                   `protobuf:"varint,4,opt,name=persisted,proto3" json:"persisted,omitempty"`
 	Error      string                 `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
-	// "proof_invalid", "smt_root_mismatch", "issuer_modulus_mismatch", or "app_id_mismatch"; empty when verified=true.
+	// "proof_invalid", "smt_root_mismatch", "issuer_modulus_mismatch",
+	// "app_id_mismatch", or "challenge_mismatch"; empty when verified=true.
 	Reason string `protobuf:"bytes,6,opt,name=reason,proto3" json:"reason,omitempty"`
 	// Populated when SMT root enforcement ran; unset when SMT_ROOT_ENFORCE=disabled.
 	SmtRoot *SmtRootOutcome `protobuf:"bytes,7,opt,name=smt_root,json=smtRoot,proto3" json:"smt_root,omitempty"`
 	// Populated when issuer-cert enforcement ran; unset when ISSUER_CERT_ENFORCE=disabled.
 	IssuerModulus *IssuerModulusOutcome `protobuf:"bytes,8,opt,name=issuer_modulus,json=issuerModulus,proto3" json:"issuer_modulus,omitempty"`
 	// Populated when ExpectedAppID is configured.
-	AppId         *AppIDOutcome `protobuf:"bytes,9,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
+	AppId *AppIDOutcome `protobuf:"bytes,9,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
+	// Populated when the per-session challenge check ran (i.e. the stored
+	// challenge value is non-empty).
+	Challenge     *ChallengeOutcome `protobuf:"bytes,10,opt,name=challenge,proto3" json:"challenge,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -400,6 +406,13 @@ func (x *LinkVerifyResponse) GetIssuerModulus() *IssuerModulusOutcome {
 func (x *LinkVerifyResponse) GetAppId() *AppIDOutcome {
 	if x != nil {
 		return x.AppId
+	}
+	return nil
+}
+
+func (x *LinkVerifyResponse) GetChallenge() *ChallengeOutcome {
+	if x != nil {
+		return x.Challenge
 	}
 	return nil
 }
@@ -632,29 +645,90 @@ func (x *AppIDOutcome) GetObserved() string {
 	return ""
 }
 
+type ChallengeOutcome struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Match bool                   `protobuf:"varint,1,opt,name=match,proto3" json:"match,omitempty"`
+	// Decimal field-element strings (per-session challenge value).
+	Expected      string `protobuf:"bytes,2,opt,name=expected,proto3" json:"expected,omitempty"`
+	Observed      string `protobuf:"bytes,3,opt,name=observed,proto3" json:"observed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChallengeOutcome) Reset() {
+	*x = ChallengeOutcome{}
+	mi := &file_proto_zkid_v1_zkid_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChallengeOutcome) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChallengeOutcome) ProtoMessage() {}
+
+func (x *ChallengeOutcome) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_zkid_v1_zkid_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChallengeOutcome.ProtoReflect.Descriptor instead.
+func (*ChallengeOutcome) Descriptor() ([]byte, []int) {
+	return file_proto_zkid_v1_zkid_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ChallengeOutcome) GetMatch() bool {
+	if x != nil {
+		return x.Match
+	}
+	return false
+}
+
+func (x *ChallengeOutcome) GetExpected() string {
+	if x != nil {
+		return x.Expected
+	}
+	return ""
+}
+
+func (x *ChallengeOutcome) GetObserved() string {
+	if x != nil {
+		return x.Observed
+	}
+	return ""
+}
+
 var File_proto_zkid_v1_zkid_proto protoreflect.FileDescriptor
 
 const file_proto_zkid_v1_zkid_proto_rawDesc = "" +
 	"\n" +
 	"\x18proto/zkid/v1/zkid.proto\x12\azkid.v1\"\x18\n" +
-	"\x16CreateChallengeRequest\"r\n" +
-	"\x17CreateChallengeResponse\x12!\n" +
-	"\fchallenge_id\x18\x01 \x01(\tR\vchallengeId\x12\x15\n" +
+	"\x16CreateChallengeRequest\"m\n" +
+	"\x17CreateChallengeResponse\x12\x1c\n" +
+	"\tchallenge\x18\x01 \x01(\tR\tchallenge\x12\x15\n" +
 	"\x06app_id\x18\x02 \x01(\tR\x05appId\x12\x1d\n" +
 	"\n" +
-	"expires_at\x18\x03 \x01(\tR\texpiresAt\"8\n" +
-	"\x13GetChallengeRequest\x12!\n" +
-	"\fchallenge_id\x18\x01 \x01(\tR\vchallengeId\"o\n" +
-	"\x14GetChallengeResponse\x12!\n" +
-	"\fchallenge_id\x18\x01 \x01(\tR\vchallengeId\x12\x15\n" +
+	"expires_at\x18\x03 \x01(\tR\texpiresAt\"3\n" +
+	"\x13GetChallengeRequest\x12\x1c\n" +
+	"\tchallenge\x18\x01 \x01(\tR\tchallenge\"j\n" +
+	"\x14GetChallengeResponse\x12\x1c\n" +
+	"\tchallenge\x18\x01 \x01(\tR\tchallenge\x12\x15\n" +
 	"\x06app_id\x18\x02 \x01(\tR\x05appId\x12\x1d\n" +
 	"\n" +
-	"expires_at\x18\x03 \x01(\tR\texpiresAt\"\xb2\x01\n" +
-	"\x11LinkVerifyRequest\x12!\n" +
-	"\fchallenge_id\x18\x01 \x01(\tR\vchallengeId\x12&\n" +
+	"expires_at\x18\x03 \x01(\tR\texpiresAt\"\xad\x01\n" +
+	"\x11LinkVerifyRequest\x12\x1c\n" +
+	"\tchallenge\x18\x01 \x01(\tR\tchallenge\x12&\n" +
 	"\x0fcert_chain_type\x18\x02 \x01(\tR\rcertChainType\x12(\n" +
 	"\x10cert_chain_proof\x18\x03 \x01(\fR\x0ecertChainProof\x12(\n" +
-	"\x10device_sig_proof\x18\x04 \x01(\fR\x0edeviceSigProof\"\xe3\x02\n" +
+	"\x10device_sig_proof\x18\x04 \x01(\fR\x0edeviceSigProof\"\x9c\x03\n" +
 	"\x12LinkVerifyResponse\x12\x1a\n" +
 	"\bverified\x18\x01 \x01(\bR\bverified\x12\x1c\n" +
 	"\tnullifier\x18\x02 \x01(\tR\tnullifier\x12\x1f\n" +
@@ -665,7 +739,9 @@ const file_proto_zkid_v1_zkid_proto_rawDesc = "" +
 	"\x06reason\x18\x06 \x01(\tR\x06reason\x122\n" +
 	"\bsmt_root\x18\a \x01(\v2\x17.zkid.v1.SmtRootOutcomeR\asmtRoot\x12D\n" +
 	"\x0eissuer_modulus\x18\b \x01(\v2\x1d.zkid.v1.IssuerModulusOutcomeR\rissuerModulus\x12,\n" +
-	"\x06app_id\x18\t \x01(\v2\x15.zkid.v1.AppIDOutcomeR\x05appId\"\xb8\x01\n" +
+	"\x06app_id\x18\t \x01(\v2\x15.zkid.v1.AppIDOutcomeR\x05appId\x127\n" +
+	"\tchallenge\x18\n" +
+	" \x01(\v2\x19.zkid.v1.ChallengeOutcomeR\tchallenge\"\xb8\x01\n" +
 	"\x0eSmtRootOutcome\x12\x16\n" +
 	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x12\x14\n" +
 	"\x05match\x18\x02 \x01(\bR\x05match\x12\x1a\n" +
@@ -682,6 +758,10 @@ const file_proto_zkid_v1_zkid_proto_rawDesc = "" +
 	"\n" +
 	"trusted_at\x18\x05 \x01(\tR\ttrustedAt\"\\\n" +
 	"\fAppIDOutcome\x12\x14\n" +
+	"\x05match\x18\x01 \x01(\bR\x05match\x12\x1a\n" +
+	"\bexpected\x18\x02 \x01(\tR\bexpected\x12\x1a\n" +
+	"\bobserved\x18\x03 \x01(\tR\bobserved\"`\n" +
+	"\x10ChallengeOutcome\x12\x14\n" +
 	"\x05match\x18\x01 \x01(\bR\x05match\x12\x1a\n" +
 	"\bexpected\x18\x02 \x01(\tR\bexpected\x12\x1a\n" +
 	"\bobserved\x18\x03 \x01(\tR\bobserved2\xf8\x01\n" +
@@ -703,7 +783,7 @@ func file_proto_zkid_v1_zkid_proto_rawDescGZIP() []byte {
 	return file_proto_zkid_v1_zkid_proto_rawDescData
 }
 
-var file_proto_zkid_v1_zkid_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_proto_zkid_v1_zkid_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_proto_zkid_v1_zkid_proto_goTypes = []any{
 	(*CreateChallengeRequest)(nil),  // 0: zkid.v1.CreateChallengeRequest
 	(*CreateChallengeResponse)(nil), // 1: zkid.v1.CreateChallengeResponse
@@ -714,22 +794,24 @@ var file_proto_zkid_v1_zkid_proto_goTypes = []any{
 	(*SmtRootOutcome)(nil),          // 6: zkid.v1.SmtRootOutcome
 	(*IssuerModulusOutcome)(nil),    // 7: zkid.v1.IssuerModulusOutcome
 	(*AppIDOutcome)(nil),            // 8: zkid.v1.AppIDOutcome
+	(*ChallengeOutcome)(nil),        // 9: zkid.v1.ChallengeOutcome
 }
 var file_proto_zkid_v1_zkid_proto_depIdxs = []int32{
 	6, // 0: zkid.v1.LinkVerifyResponse.smt_root:type_name -> zkid.v1.SmtRootOutcome
 	7, // 1: zkid.v1.LinkVerifyResponse.issuer_modulus:type_name -> zkid.v1.IssuerModulusOutcome
 	8, // 2: zkid.v1.LinkVerifyResponse.app_id:type_name -> zkid.v1.AppIDOutcome
-	0, // 3: zkid.v1.ZkIDVerifier.CreateChallenge:input_type -> zkid.v1.CreateChallengeRequest
-	2, // 4: zkid.v1.ZkIDVerifier.GetChallenge:input_type -> zkid.v1.GetChallengeRequest
-	4, // 5: zkid.v1.ZkIDVerifier.LinkVerify:input_type -> zkid.v1.LinkVerifyRequest
-	1, // 6: zkid.v1.ZkIDVerifier.CreateChallenge:output_type -> zkid.v1.CreateChallengeResponse
-	3, // 7: zkid.v1.ZkIDVerifier.GetChallenge:output_type -> zkid.v1.GetChallengeResponse
-	5, // 8: zkid.v1.ZkIDVerifier.LinkVerify:output_type -> zkid.v1.LinkVerifyResponse
-	6, // [6:9] is the sub-list for method output_type
-	3, // [3:6] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	9, // 3: zkid.v1.LinkVerifyResponse.challenge:type_name -> zkid.v1.ChallengeOutcome
+	0, // 4: zkid.v1.ZkIDVerifier.CreateChallenge:input_type -> zkid.v1.CreateChallengeRequest
+	2, // 5: zkid.v1.ZkIDVerifier.GetChallenge:input_type -> zkid.v1.GetChallengeRequest
+	4, // 6: zkid.v1.ZkIDVerifier.LinkVerify:input_type -> zkid.v1.LinkVerifyRequest
+	1, // 7: zkid.v1.ZkIDVerifier.CreateChallenge:output_type -> zkid.v1.CreateChallengeResponse
+	3, // 8: zkid.v1.ZkIDVerifier.GetChallenge:output_type -> zkid.v1.GetChallengeResponse
+	5, // 9: zkid.v1.ZkIDVerifier.LinkVerify:output_type -> zkid.v1.LinkVerifyResponse
+	7, // [7:10] is the sub-list for method output_type
+	4, // [4:7] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_proto_zkid_v1_zkid_proto_init() }
@@ -743,7 +825,7 @@ func file_proto_zkid_v1_zkid_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_zkid_v1_zkid_proto_rawDesc), len(file_proto_zkid_v1_zkid_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
