@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"net"
@@ -21,6 +22,7 @@ import (
 	pb "github.com/zkmopro/go-zkid-verifier/proto/zkid/v1"
 	"github.com/zkmopro/go-zkid-verifier/smtroot"
 	"github.com/zkmopro/go-zkid-verifier/store"
+	verifierpkg "github.com/zkmopro/go-zkid-verifier/verifier"
 	"google.golang.org/grpc"
 )
 
@@ -60,6 +62,14 @@ func main() {
 	if l := len(appID); l != 2*store.AppIDLen {
 		log.Fatalf("APP_ID must be %d hex chars (got %d)", 2*store.AppIDLen, l)
 	}
+	appIDBytes, err := hex.DecodeString(appID)
+	if err != nil {
+		log.Fatalf("APP_ID is not valid hex: %v", err)
+	}
+	appIDPacked, err := verifierpkg.PackAppIDLE(appIDBytes)
+	if err != nil {
+		log.Fatalf("APP_ID pack: %v", err)
+	}
 
 	debugToken := os.Getenv("DEBUG_TOKEN")
 
@@ -87,11 +97,12 @@ func main() {
 		log.Fatalf("issuer cert provider: %v", err)
 	}
 	verifier := &linkverify.Verifier{
-		KeysDir:       keysDir,
-		SmtRoot:       provider,
-		IssuerCert:    issuerProvider,
-		ExpectedAppID: appID,
-		Logger:        smtroot.DefaultLogger{},
+		KeysDir:             keysDir,
+		SmtRoot:             provider,
+		IssuerCert:          issuerProvider,
+		ExpectedAppID:       appID,
+		ExpectedAppIDPacked: appIDPacked,
+		Logger:              smtroot.DefaultLogger{},
 	}
 	if provider != nil {
 		provider.Start(ctx)
