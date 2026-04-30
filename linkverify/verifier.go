@@ -11,11 +11,12 @@ import (
 )
 
 type Verifier struct {
-	KeysDir       string
-	SmtRoot       *smtroot.Provider
-	IssuerCert    *issuercert.Provider
-	ExpectedAppID string
-	Logger        smtroot.Logger
+	KeysDir             string
+	SmtRoot             *smtroot.Provider
+	IssuerCert          *issuercert.Provider
+	ExpectedAppID       string // 62-char lowercase hex; for response display
+	ExpectedAppIDPacked string // little-endian packed decimal; matched constant-time
+	Logger              smtroot.Logger
 }
 
 // Result holds everything the handler needs to respond.
@@ -27,6 +28,7 @@ type Result struct {
 	SmtRoot       *SmtRootOutcome
 	IssuerModulus *IssuerModulusOutcome
 	AppID         *AppIDOutcome
+	Challenge     *ChallengeOutcome
 }
 
 // SmtRootOutcome is the outcome of the proof-vs-trusted-root comparison.
@@ -50,6 +52,14 @@ type IssuerModulusOutcome struct {
 }
 
 type AppIDOutcome struct {
+	Match    bool   `json:"match"`
+	Expected string `json:"expected"`
+	Observed string `json:"observed"`
+}
+
+// ChallengeOutcome reports whether the per-session challenge in the device-sig
+// proof matches the value the verifier issued for this challenge.
+type ChallengeOutcome struct {
 	Match    bool   `json:"match"`
 	Expected string `json:"expected"`
 	Observed string `json:"observed"`
@@ -99,8 +109,8 @@ func (v *Verifier) Verify(req Request) (*Result, error) {
 		}
 	}
 
-	if v.ExpectedAppID != "" {
-		outcome := checkAppID(parsed, v.ExpectedAppID, v.Logger)
+	if v.ExpectedAppIDPacked != "" {
+		outcome := checkAppID(parsed, v.ExpectedAppID, v.ExpectedAppIDPacked, v.Logger)
 		res.AppID = outcome
 		if !outcome.Match && res.Reason == "" {
 			res.Verified = false
@@ -108,6 +118,28 @@ func (v *Verifier) Verify(req Request) (*Result, error) {
 		}
 	}
 	return res, nil
+}
+
+// CheckChallenge compares the per-session challenge in the proof against the
+// value issued for this challenge (constant-time). Lives on Verifier so
+// the service layer can reuse it after the FFI verify completes.
+func (v *Verifier) CheckChallenge(parsed *verifier.ParsedInputs, expected string) *ChallengeOutcome {
+	match := subtle.ConstantTimeCompare([]byte(parsed.Challenge), []byte(expected)) == 1
+	outcome := &ChallengeOutcome{
+		Match:    match,
+		Expected: expected,
+		Observed: parsed.Challenge,
+	}
+	level, event := "info", "challenge_check"
+	if !match {
+		level, event = "warn", "challenge_mismatch"
+	}
+	v.Logger.Event(level, event,
+		"expected", outcome.Expected,
+		"observed", outcome.Observed,
+		"match", outcome.Match,
+	)
+	return outcome
 }
 
 func checkSmtRoot(pt ProofType, parsed *verifier.ParsedInputs, provider *smtroot.Provider, logger smtroot.Logger) (*SmtRootOutcome, error) {
@@ -177,11 +209,14 @@ func checkIssuerModulus(pt ProofType, parsed *verifier.ParsedInputs, provider *i
 	return outcome, nil
 }
 
-func checkAppID(parsed *verifier.ParsedInputs, expected string, logger smtroot.Logger) *AppIDOutcome {
-	match := subtle.ConstantTimeCompare([]byte(parsed.AppID), []byte(expected)) == 1
+// checkAppID compares the packed field-element form (constant-time on the
+// decimal string), but reports the human-readable hex form so the response
+// stays compatible with existing API clients.
+func checkAppID(parsed *verifier.ParsedInputs, expectedHex, expectedPacked string, logger smtroot.Logger) *AppIDOutcome {
+	match := subtle.ConstantTimeCompare([]byte(parsed.AppIDPacked), []byte(expectedPacked)) == 1
 	outcome := &AppIDOutcome{
 		Match:    match,
-		Expected: expected,
+		Expected: expectedHex,
 		Observed: parsed.AppID,
 	}
 	level, event := "info", "app_id_check"

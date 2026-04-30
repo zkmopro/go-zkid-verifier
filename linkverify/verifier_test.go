@@ -184,8 +184,8 @@ func TestCheckIssuerModulus_UnavailableWhenIssuerMissing(t *testing.T) {
 }
 
 func TestCheckAppID_Match(t *testing.T) {
-	parsed := &verifier.ParsedInputs{AppID: "0xabc123"}
-	outcome := checkAppID(parsed, "0xabc123", noopLogger{})
+	parsed := &verifier.ParsedInputs{AppID: "0xabc123", AppIDPacked: "42"}
+	outcome := checkAppID(parsed, "0xabc123", "42", noopLogger{})
 	if !outcome.Match {
 		t.Fatalf("expected Match=true, got %+v", outcome)
 	}
@@ -195,13 +195,34 @@ func TestCheckAppID_Match(t *testing.T) {
 }
 
 func TestCheckAppID_Mismatch(t *testing.T) {
-	parsed := &verifier.ParsedInputs{AppID: "0xabc123"}
-	outcome := checkAppID(parsed, "0xdef456", noopLogger{})
+	parsed := &verifier.ParsedInputs{AppID: "0xabc123", AppIDPacked: "42"}
+	outcome := checkAppID(parsed, "0xdef456", "999", noopLogger{})
 	if outcome.Match {
 		t.Fatalf("expected Match=false, got %+v", outcome)
 	}
 	if outcome.Expected != "0xdef456" {
 		t.Errorf("Expected: got %q", outcome.Expected)
+	}
+}
+
+func TestCheckChallenge_Match(t *testing.T) {
+	v := &Verifier{Logger: noopLogger{}}
+	parsed := &verifier.ParsedInputs{Challenge: "12345"}
+	outcome := v.CheckChallenge(parsed, "12345")
+	if !outcome.Match {
+		t.Fatalf("expected Match=true, got %+v", outcome)
+	}
+}
+
+func TestCheckChallenge_Mismatch(t *testing.T) {
+	v := &Verifier{Logger: noopLogger{}}
+	parsed := &verifier.ParsedInputs{Challenge: "12345"}
+	outcome := v.CheckChallenge(parsed, "67890")
+	if outcome.Match {
+		t.Fatalf("expected Match=false, got %+v", outcome)
+	}
+	if outcome.Expected != "67890" || outcome.Observed != "12345" {
+		t.Errorf("expected/observed: %+v", outcome)
 	}
 }
 

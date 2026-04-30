@@ -12,10 +12,10 @@ import (
 )
 
 type recordCall struct {
-	Nullifier   string
-	ChallengeID string
-	ProofType   string
-	Proof       *string
+	Nullifier string
+	Challenge string
+	ProofType string
+	Proof     *string
 }
 
 type fakeStore struct {
@@ -29,19 +29,19 @@ func (f *fakeStore) CreateChallenge(ctx context.Context) (*store.Challenge, erro
 	panic("CreateChallenge not expected in these tests")
 }
 
-func (f *fakeStore) GetChallenge(ctx context.Context, id string) (*store.Challenge, error) {
+func (f *fakeStore) GetChallenge(ctx context.Context, challenge string) (*store.Challenge, error) {
 	if f.getIDErr != nil {
 		return nil, f.getIDErr
 	}
-	return f.byID[id], nil
+	return f.byID[challenge], nil
 }
 
-func (f *fakeStore) VerifyAndRecord(ctx context.Context, nullifier, challengeID string, proof *string, proofType string) error {
+func (f *fakeStore) VerifyAndRecord(ctx context.Context, nullifier, challenge string, proof *string, proofType string) error {
 	f.recordedCalls = append(f.recordedCalls, recordCall{
-		Nullifier:   nullifier,
-		ChallengeID: challengeID,
-		ProofType:   proofType,
-		Proof:       proof,
+		Nullifier: nullifier,
+		Challenge: challenge,
+		ProofType: proofType,
+		Proof:     proof,
 	})
 	return f.recordErr
 }
@@ -66,6 +66,13 @@ func (f *fakeVerifier) Verify(Request) (*Result, error) {
 	return f.result, f.err
 }
 
+// Match-by-default for the broader fake-verifier suite; tests that target the
+// mismatch path use httpapi/linkverify_test.go::TestLinkVerify_ChallengeMismatchReturns409
+// or the real-FFI counterpart in linkverify_test.go.
+func (f *fakeVerifier) CheckChallenge(parsed *verifier.ParsedInputs, expected string) *ChallengeOutcome {
+	return &ChallengeOutcome{Match: true, Expected: expected, Observed: parsed.Challenge}
+}
+
 func newService(v ProofVerifier, s store.Store) *Service {
 	return &Service{verifier: v, store: s}
 }
@@ -77,12 +84,12 @@ func successParsed(appID, nullifier string) *verifier.ParsedInputs {
 	}
 }
 
-func futureChallenge(id string) *store.Challenge {
-	return &store.Challenge{ID: id, ExpiresAt: time.Now().Add(1 * time.Hour)}
+func futureChallenge(challenge string) *store.Challenge {
+	return &store.Challenge{Challenge: challenge, ExpiresAt: time.Now().Add(1 * time.Hour)}
 }
 
-func expiredChallenge(id string) *store.Challenge {
-	return &store.Challenge{ID: id, ExpiresAt: time.Now().Add(-1 * time.Hour)}
+func expiredChallenge(challenge string) *store.Challenge {
+	return &store.Challenge{Challenge: challenge, ExpiresAt: time.Now().Add(-1 * time.Hour)}
 }
 
 func TestVerifyAndRecord_Success(t *testing.T) {
@@ -91,11 +98,11 @@ func TestVerifyAndRecord_Success(t *testing.T) {
 		result: &Result{Verified: true, Parsed: parsed},
 	}
 	c := futureChallenge("chal-1")
-	fs := &fakeStore{byID: map[string]*store.Challenge{c.ID: c}}
+	fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	svc := newService(fv, fs)
 
 	pt := ProofTypeRS2048
-	pr, err := svc.VerifyAndRecord(context.Background(), c.ID, Request{ProofType: pt})
+	pr, err := svc.VerifyAndRecord(context.Background(), c.Challenge, Request{ProofType: pt})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -105,9 +112,6 @@ func TestVerifyAndRecord_Success(t *testing.T) {
 	if pr.Nullifier != "n-1" {
 		t.Errorf("Nullifier: got %q", pr.Nullifier)
 	}
-	if pr.ChallengeID != c.ID {
-		t.Errorf("ChallengeID: got %q, want %q", pr.ChallengeID, c.ID)
-	}
 	if !pr.Persisted {
 		t.Error("Persisted: got false")
 	}
@@ -115,7 +119,7 @@ func TestVerifyAndRecord_Success(t *testing.T) {
 		t.Fatalf("recordedCalls: got %d, want 1", len(fs.recordedCalls))
 	}
 	call := fs.recordedCalls[0]
-	if call.Nullifier != "n-1" || call.ChallengeID != c.ID || call.ProofType != pt.StoreKey() {
+	if call.Nullifier != "n-1" || call.Challenge != c.Challenge || call.ProofType != pt.StoreKey() {
 		t.Errorf("recorded call: got %+v", call)
 	}
 }
@@ -146,10 +150,10 @@ func TestVerifyAndRecord_ChallengeExpired(t *testing.T) {
 		tt.Fatal("Verifier.Verify must not run when challenge is expired")
 	}
 	c := expiredChallenge("c-exp")
-	fs := &fakeStore{byID: map[string]*store.Challenge{c.ID: c}}
+	fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	svc := newService(fv, fs)
 
-	pr, err := svc.VerifyAndRecord(context.Background(), c.ID, Request{ProofType: ProofTypeRS2048})
+	pr, err := svc.VerifyAndRecord(context.Background(), c.Challenge, Request{ProofType: ProofTypeRS2048})
 	if pr != nil {
 		t.Errorf("expected nil ProcessResult, got %+v", pr)
 	}
@@ -166,10 +170,10 @@ func TestVerifyAndRecord_ProofInvalid(t *testing.T) {
 	fv := &fakeVerifier{
 		result: &Result{Verified: false, Reason: "proof_invalid"},
 	}
-	fs := &fakeStore{byID: map[string]*store.Challenge{c.ID: c}}
+	fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	svc := newService(fv, fs)
 
-	pr, err := svc.VerifyAndRecord(context.Background(), c.ID, Request{ProofType: ProofTypeRS2048})
+	pr, err := svc.VerifyAndRecord(context.Background(), c.Challenge, Request{ProofType: ProofTypeRS2048})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -178,9 +182,6 @@ func TestVerifyAndRecord_ProofInvalid(t *testing.T) {
 	}
 	if pr.Reason != "proof_invalid" {
 		t.Errorf("Reason: got %q", pr.Reason)
-	}
-	if pr.ChallengeID != c.ID {
-		t.Errorf("ChallengeID: got %q", pr.ChallengeID)
 	}
 	if pr.Persisted {
 		t.Error("Persisted: got true")
@@ -201,10 +202,10 @@ func TestVerifyAndRecord_AppIDMismatchNotPersisted(t *testing.T) {
 			AppID:    outcome,
 		},
 	}
-	fs := &fakeStore{byID: map[string]*store.Challenge{c.ID: c}}
+	fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	svc := newService(fv, fs)
 
-	pr, err := svc.VerifyAndRecord(context.Background(), c.ID, Request{ProofType: ProofTypeRS2048})
+	pr, err := svc.VerifyAndRecord(context.Background(), c.Challenge, Request{ProofType: ProofTypeRS2048})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -234,17 +235,17 @@ func TestVerifyAndRecord_DuplicateNullifier(t *testing.T) {
 		result: &Result{Verified: true, Parsed: successParsed("0xappid", "dup")},
 	}
 	fs := &fakeStore{
-		byID:      map[string]*store.Challenge{c.ID: c},
+		byID:      map[string]*store.Challenge{c.Challenge: c},
 		recordErr: store.ErrDuplicateNullifier,
 	}
 	svc := newService(fv, fs)
 
-	pr, err := svc.VerifyAndRecord(context.Background(), c.ID, Request{ProofType: ProofTypeRS2048})
+	pr, err := svc.VerifyAndRecord(context.Background(), c.Challenge, Request{ProofType: ProofTypeRS2048})
 	if !errors.Is(err, store.ErrDuplicateNullifier) {
 		t.Fatalf("error: got %v, want ErrDuplicateNullifier", err)
 	}
-	if pr == nil || pr.Nullifier != "dup" || pr.ChallengeID != c.ID {
-		t.Fatalf("expected ProcessResult with carryover ids, got %+v", pr)
+	if pr == nil || pr.Nullifier != "dup" {
+		t.Fatalf("expected ProcessResult with nullifier carry-through, got %+v", pr)
 	}
 	if pr.Persisted {
 		t.Error("Persisted: got true on store error")
@@ -254,10 +255,10 @@ func TestVerifyAndRecord_DuplicateNullifier(t *testing.T) {
 func TestVerifyAndRecord_VerifierError(t *testing.T) {
 	c := futureChallenge("c-err")
 	fv := &fakeVerifier{err: errors.New("boom")}
-	fs := &fakeStore{byID: map[string]*store.Challenge{c.ID: c}}
+	fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	svc := newService(fv, fs)
 
-	pr, err := svc.VerifyAndRecord(context.Background(), c.ID, Request{ProofType: ProofTypeRS2048})
+	pr, err := svc.VerifyAndRecord(context.Background(), c.Challenge, Request{ProofType: ProofTypeRS2048})
 	if pr != nil {
 		t.Errorf("expected nil ProcessResult, got %+v", pr)
 	}

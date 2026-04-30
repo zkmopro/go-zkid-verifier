@@ -12,4 +12,5 @@ const (
 	ReasonSmtRootMismatch       = "smt_root_mismatch"
 	ReasonIssuerModulusMismatch = "issuer_modulus_mismatch"
 	ReasonAppIDMismatch         = "app_id_mismatch"
+	ReasonChallengeMismatch     = "challenge_mismatch"
 )

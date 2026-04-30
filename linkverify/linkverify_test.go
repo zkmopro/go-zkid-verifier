@@ -6,8 +6,23 @@ import (
 	"testing"
 
 	"github.com/zkmopro/go-zkid-verifier/smtroot"
+	"github.com/zkmopro/go-zkid-verifier/store"
 	"github.com/zkmopro/go-zkid-verifier/verifier"
 )
+
+func resolveKeysDir(t *testing.T) string {
+	t.Helper()
+	keysDir := os.Getenv("KEYS_DIR")
+	if keysDir == "" {
+		keysDir = filepath.Join("..", "keys")
+	}
+	if _, err := os.Stat(filepath.Join(keysDir, "cert_chain_rs2048_verifying.key")); err != nil {
+		return ""
+	}
+	abs, _ := filepath.Abs(keysDir)
+	return abs
+}
+
 
 func TestVerifyRS2048(t *testing.T) {
 	keysDir := os.Getenv("KEYS_DIR")
@@ -59,9 +74,10 @@ func TestVerifyRS2048(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseDeviceSig: %v", err)
 	}
-	t.Logf("pk_commit: %s", ds.PkCommit)
-	t.Logf("nullifier: %s", ds.Nullifier)
-	t.Logf("app_id:    %s", ds.AppIDHex)
+	t.Logf("pk_commit:     %s", ds.PkCommit)
+	t.Logf("nullifier:     %s", ds.Nullifier)
+	t.Logf("app_id_packed: %s", ds.AppIDPacked)
+	t.Logf("challenge:     %s", ds.Challenge)
 }
 
 func TestVerifyRS4096(t *testing.T) {
@@ -227,6 +243,73 @@ func TestVerifier_NilProviderPassthrough(t *testing.T) {
 	if result.SmtRoot != nil {
 		t.Errorf("expected nil SmtRoot with nil provider, got %+v", result.SmtRoot)
 	}
+}
+
+// Real-FFI counterpart to TestLinkVerify_ChallengeMismatchReturns409
+// (httpapi/linkverify_test.go) — pins the freshness fix end-to-end on actual
+// proof bytes and asserts the nullifier is **not** recorded on a stale
+// challenge. The HTTP test pins wire-format / status-code; this test pins
+// FFI / persistence side-effects.
+func TestServiceChallenge_RealProof(t *testing.T) {
+	keysDir := resolveKeysDir(t)
+	if keysDir == "" {
+		t.Skip("verifying keys not found; set KEYS_DIR or run make download-keys")
+	}
+
+	artifactsDir := filepath.Join("..", "tests", "artifacts", "cc2048_ds2048")
+	ccProof, err := os.ReadFile(filepath.Join(artifactsDir, "cert_chain_rs2048_proof.bin"))
+	if err != nil {
+		t.Fatalf("read cert_chain proof: %v", err)
+	}
+	dsProof, err := os.ReadFile(filepath.Join(artifactsDir, "device_sig_rs2048_proof.bin"))
+	if err != nil {
+		t.Fatalf("read device_sig proof: %v", err)
+	}
+
+	_, signals, err := Verify(Request{CertChainProof: ccProof, DeviceSigProof: dsProof, ProofType: ProofTypeRS2048}, keysDir)
+	if err != nil {
+		t.Fatalf("baseline Verify: %v", err)
+	}
+	parsed, err := verifier.ParsePublicInputs(signals, verifier.CertChainRS2048)
+	if err != nil {
+		t.Fatalf("ParsePublicInputs: %v", err)
+	}
+	v := &Verifier{KeysDir: keysDir, Logger: smtroot.DefaultLogger{}}
+
+	t.Run("match", func(t *testing.T) {
+		c := futureChallenge(parsed.Challenge)
+		fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
+		res, err := NewService(v, fs).VerifyAndRecord(t.Context(), c.Challenge, Request{
+			CertChainProof: ccProof, DeviceSigProof: dsProof, ProofType: ProofTypeRS2048,
+		})
+		if err != nil {
+			t.Fatalf("VerifyAndRecord: %v", err)
+		}
+		if !res.Verified || !res.Persisted {
+			t.Fatalf("expected Verified+Persisted, got verified=%v persisted=%v reason=%q", res.Verified, res.Persisted, res.Reason)
+		}
+		if res.Challenge == nil || !res.Challenge.Match {
+			t.Fatalf("Challenge outcome: %+v", res.Challenge)
+		}
+	})
+
+	t.Run("mismatch", func(t *testing.T) {
+		// Stored challenge differs from the value bound into the proof.
+		c := futureChallenge("999999999")
+		fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
+		res, err := NewService(v, fs).VerifyAndRecord(t.Context(), c.Challenge, Request{
+			CertChainProof: ccProof, DeviceSigProof: dsProof, ProofType: ProofTypeRS2048,
+		})
+		if err != nil {
+			t.Fatalf("VerifyAndRecord: %v", err)
+		}
+		if res.Verified || res.Reason != ReasonChallengeMismatch {
+			t.Fatalf("expected ChallengeMismatch, got verified=%v reason=%q", res.Verified, res.Reason)
+		}
+		if res.Persisted || len(fs.recordedCalls) != 0 {
+			t.Fatalf("nullifier must not be recorded on stale challenge: persisted=%v calls=%d", res.Persisted, len(fs.recordedCalls))
+		}
+	})
 }
 
 func TestParseProofType(t *testing.T) {
