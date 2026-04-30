@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/joho/godotenv"
 	"github.com/zkmopro/go-zkid-verifier/challenge"
@@ -65,6 +66,11 @@ func main() {
 	appIDBytes, err := hex.DecodeString(appID)
 	if err != nil {
 		log.Fatalf("APP_ID is not valid hex: %v", err)
+	}
+	// HiPKI /sign takes a UTF-8 string; reject non-UTF-8 APP_ID at boot rather
+	// than letting the prover bail mid-flow.
+	if !utf8.Valid(appIDBytes) {
+		log.Fatalf("APP_ID hex-decodes to non-UTF-8 bytes; HiPKI /sign requires a UTF-8 payload. Regenerate with: APP_ID=$(LC_ALL=C tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 31 | xxd -p -c 62)")
 	}
 	appIDPacked, err := verifierpkg.PackAppIDLE(appIDBytes)
 	if err != nil {
