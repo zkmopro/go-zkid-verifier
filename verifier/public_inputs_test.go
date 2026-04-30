@@ -1,28 +1,26 @@
 package verifier
 
 import (
-	"fmt"
-	"strings"
+	"encoding/hex"
 	"testing"
 )
-
-// Mimics the Spartan2 FFI wire format: 0x + 64-char zero-padded big-endian.
-func fieldHex(v uint8) string {
-	return "0x" + strings.Repeat("0", 62) + fmt.Sprintf("%02x", v)
-}
 
 func TestParseDeviceSig(t *testing.T) {
 	const pkCommit = "0xdeadbeef"
 	const nullifier = "0xfeedface"
+	const challenge = "1234567890"
 
-	signals := make([]string, 2+AppIDLen)
-	signals[0] = pkCommit
-	signals[1] = nullifier
+	// Pack 0x01..0x1f (31 bytes) little-endian into a field element.
+	bytes := make([]byte, AppIDLen)
 	for i := 0; i < AppIDLen; i++ {
-		signals[2+i] = fieldHex(uint8(i + 1))
+		bytes[i] = byte(i + 1)
+	}
+	packed, err := PackAppIDLE(bytes)
+	if err != nil {
+		t.Fatalf("PackAppIDLE: %v", err)
 	}
 
-	ds, err := ParseDeviceSig(signals)
+	ds, err := ParseDeviceSig([]string{pkCommit, nullifier, packed, challenge})
 	if err != nil {
 		t.Fatalf("ParseDeviceSig: %v", err)
 	}
@@ -32,35 +30,74 @@ func TestParseDeviceSig(t *testing.T) {
 	if ds.Nullifier != nullifier {
 		t.Errorf("Nullifier: got %s, want %s", ds.Nullifier, nullifier)
 	}
-	wantHex := ""
-	for i := 0; i < AppIDLen; i++ {
-		wantHex += fmt.Sprintf("%02x", i+1)
+	if ds.AppIDPacked != packed {
+		t.Errorf("AppIDPacked: got %s, want %s", ds.AppIDPacked, packed)
 	}
-	if ds.AppIDHex != wantHex {
-		t.Errorf("AppIDHex: got %q, want %q", ds.AppIDHex, wantHex)
+	if ds.Challenge != challenge {
+		t.Errorf("Challenge: got %s, want %s", ds.Challenge, challenge)
 	}
 }
 
 func TestParseDeviceSigStrictLength(t *testing.T) {
-	if _, err := ParseDeviceSig(make([]string, 2)); err == nil {
-		t.Error("expected error for 2 signals (need 33)")
+	if _, err := ParseDeviceSig(make([]string, 3)); err == nil {
+		t.Error("expected error for 3 signals (need 4)")
 	}
-	if _, err := ParseDeviceSig(make([]string, 34)); err == nil {
-		t.Error("expected error for 34 signals (need 33)")
+	if _, err := ParseDeviceSig(make([]string, 5)); err == nil {
+		t.Error("expected error for 5 signals (need 4)")
 	}
 }
 
-func TestParseDeviceSigRejectsOutOfRangeAppIDByte(t *testing.T) {
-	signals := make([]string, 2+AppIDLen)
-	signals[0] = "0x01"
-	signals[1] = "0x02"
-	for i := 0; i < AppIDLen; i++ {
-		signals[2+i] = "0x00"
+func TestPackUnpackAppIDRoundTrip(t *testing.T) {
+	cases := [][]byte{
+		bytesIota(AppIDLen),
+		bytesAll(0xff),
+		append([]byte{0x00, 0x00}, bytesIota(AppIDLen-2)...),
 	}
-	signals[10] = "0x100" // 256, out of byte range
-	if _, err := ParseDeviceSig(signals); err == nil {
-		t.Error("expected error for app_id byte > 255")
+	for _, b := range cases {
+		packed, err := PackAppIDLE(b)
+		if err != nil {
+			t.Fatalf("PackAppIDLE: %v", err)
+		}
+		got, err := UnpackAppIDHex(packed)
+		if err != nil {
+			t.Fatalf("UnpackAppIDHex: %v", err)
+		}
+		if got != hex.EncodeToString(b) {
+			t.Errorf("round-trip mismatch: got %s, want %s", got, hex.EncodeToString(b))
+		}
 	}
+}
+
+func TestUnpackAppIDRejectsOversize(t *testing.T) {
+	// 32-byte value (overflows the 31-byte budget for app_id).
+	tooBig := "0x" + "01" + repeat("00", 31)
+	if _, err := UnpackAppIDHex(tooBig); err == nil {
+		t.Error("expected error for >31-byte packed value")
+	}
+}
+
+func bytesIota(n int) []byte {
+	out := make([]byte, n)
+	for i := 0; i < n; i++ {
+		out[i] = byte(i + 1)
+	}
+	return out
+}
+
+func bytesAll(v byte) []byte {
+	out := make([]byte, AppIDLen)
+	for i := range out {
+		out[i] = v
+	}
+	return out
+}
+
+func repeat(s string, n int) string {
+	out := ""
+	for i := 0; i < n; i++ {
+		out += s
+	}
+	return out
 }
 
 func TestParseCertChainRS2048(t *testing.T) {
