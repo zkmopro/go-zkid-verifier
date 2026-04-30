@@ -24,6 +24,16 @@ func (f *fakeVerifier) Verify(linkverify.Request) (*linkverify.Result, error) {
 	return f.result, f.err
 }
 
+// Match-by-default: tests that exercise the mismatch path stuff parsed.Challenge
+// with a value distinct from the stored challenge. See
+// TestLinkVerify_ChallengeMismatchReturns409.
+func (f *fakeVerifier) CheckChallenge(parsed *verifier.ParsedInputs, expected string) *linkverify.ChallengeOutcome {
+	if parsed.Challenge != "" && parsed.Challenge != expected {
+		return &linkverify.ChallengeOutcome{Match: false, Expected: expected, Observed: parsed.Challenge}
+	}
+	return &linkverify.ChallengeOutcome{Match: true, Expected: expected, Observed: parsed.Challenge}
+}
+
 type fakeHTTPStore struct {
 	byID      map[string]*store.Challenge
 	recordErr error
@@ -32,18 +42,18 @@ type fakeHTTPStore struct {
 func (s *fakeHTTPStore) CreateChallenge(ctx context.Context) (*store.Challenge, error) {
 	return nil, errors.New("not used")
 }
-func (s *fakeHTTPStore) GetChallenge(ctx context.Context, id string) (*store.Challenge, error) {
-	return s.byID[id], nil
+func (s *fakeHTTPStore) GetChallenge(ctx context.Context, challenge string) (*store.Challenge, error) {
+	return s.byID[challenge], nil
 }
-func (s *fakeHTTPStore) VerifyAndRecord(ctx context.Context, nullifier, challengeID string, proof *string, proofType string) error {
+func (s *fakeHTTPStore) VerifyAndRecord(ctx context.Context, nullifier, challenge string, proof *string, proofType string) error {
 	return s.recordErr
 }
 func (s *fakeHTTPStore) CleanDB(ctx context.Context) (int64, int64, error) {
 	return 0, 0, nil
 }
 
-func futureChallenge(id string) *store.Challenge {
-	return &store.Challenge{ID: id, ExpiresAt: time.Now().Add(time.Hour)}
+func futureChallenge(challenge string) *store.Challenge {
+	return &store.Challenge{Challenge: challenge, ExpiresAt: time.Now().Add(time.Hour)}
 }
 
 func postLinkVerify(t *testing.T, h http.Handler, body LinkVerifyRequest) *httptest.ResponseRecorder {
@@ -59,16 +69,16 @@ func postLinkVerify(t *testing.T, h http.Handler, body LinkVerifyRequest) *httpt
 	return w
 }
 
-func validReq(challengeID string) LinkVerifyRequest {
+func validReq(challenge string) LinkVerifyRequest {
 	return LinkVerifyRequest{
-		ChallengeID:    challengeID,
+		Challenge:      challenge,
 		CertChainType:  "rs2048",
 		CertChainProof: []byte("x"),
 		DeviceSigProof: []byte("x"),
 	}
 }
 
-func TestLinkVerify_MissingChallengeIDReturns400(t *testing.T) {
+func TestLinkVerify_MissingChallengeReturns400(t *testing.T) {
 	svc := linkverify.NewService(&fakeVerifier{}, &fakeHTTPStore{})
 	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil, testAppID, "")
 
@@ -94,10 +104,10 @@ func TestLinkVerify_SmtRootMismatchReturns409(t *testing.T) {
 			},
 		},
 	}
-	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{c.ID: c}}
+	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	h := NewRouter(linkverify.NewService(fv, fs), fs, nil, nil, testAppID, "")
 
-	w := postLinkVerify(t, h, validReq(c.ID))
+	w := postLinkVerify(t, h, validReq(c.Challenge))
 	if w.Code != http.StatusConflict {
 		t.Fatalf("status: got %d, want %d", w.Code, http.StatusConflict)
 	}
@@ -118,10 +128,10 @@ func TestLinkVerify_ProofInvalidStays200(t *testing.T) {
 	fv := &fakeVerifier{
 		result: &linkverify.Result{Verified: false, Reason: linkverify.ReasonProofInvalid},
 	}
-	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{c.ID: c}}
+	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	h := NewRouter(linkverify.NewService(fv, fs), fs, nil, nil, testAppID, "")
 
-	w := postLinkVerify(t, h, validReq(c.ID))
+	w := postLinkVerify(t, h, validReq(c.Challenge))
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200", w.Code)
 	}
@@ -130,10 +140,10 @@ func TestLinkVerify_ProofInvalidStays200(t *testing.T) {
 func TestLinkVerify_SmtRootUnavailableReturns503(t *testing.T) {
 	c := futureChallenge("c-3")
 	fv := &fakeVerifier{err: linkverify.ErrSmtRootUnavailable}
-	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{c.ID: c}}
+	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	h := NewRouter(linkverify.NewService(fv, fs), fs, nil, nil, testAppID, "")
 
-	w := postLinkVerify(t, h, validReq(c.ID))
+	w := postLinkVerify(t, h, validReq(c.Challenge))
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status: got %d, want 503", w.Code)
 	}
@@ -153,10 +163,10 @@ func TestLinkVerify_AppIDMismatchReturns409(t *testing.T) {
 			},
 		},
 	}
-	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{c.ID: c}}
+	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	h := NewRouter(linkverify.NewService(fv, fs), fs, nil, nil, testAppID, "")
 
-	w := postLinkVerify(t, h, validReq(c.ID))
+	w := postLinkVerify(t, h, validReq(c.Challenge))
 	if w.Code != http.StatusConflict {
 		t.Fatalf("status: got %d, want 409", w.Code)
 	}
@@ -183,6 +193,38 @@ func TestLinkVerify_ChallengeNotFoundReturns404(t *testing.T) {
 	}
 }
 
+// Regression for the freshness fix (PR#60 follow-on): a precomputed proof
+// must be rejected if its bound `challenge` signal disagrees with what
+// /challenge issued. Stale or replayed proofs hit this path before the
+// nullifier is recorded.
+func TestLinkVerify_ChallengeMismatchReturns409(t *testing.T) {
+	c := futureChallenge("111")
+	parsed := &verifier.ParsedInputs{
+		Nullifier: "n-stale",
+		Challenge: "999", // does not match the stored "111"
+	}
+	fv := &fakeVerifier{
+		result: &linkverify.Result{Verified: true, Parsed: parsed},
+	}
+	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{c.Challenge: c}}
+	h := NewRouter(linkverify.NewService(fv, fs), fs, nil, nil, testAppID, "")
+
+	w := postLinkVerify(t, h, validReq(c.Challenge))
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status: got %d, want 409", w.Code)
+	}
+	var resp VerifyFailResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v body=%s", err, w.Body.String())
+	}
+	if resp.Reason != linkverify.ReasonChallengeMismatch {
+		t.Errorf("Reason: got %q, want %q", resp.Reason, linkverify.ReasonChallengeMismatch)
+	}
+	if resp.Challenge == nil || resp.Challenge.Match {
+		t.Errorf("Challenge outcome: %+v", resp.Challenge)
+	}
+}
+
 func TestLinkVerify_DuplicateNullifier409IncludesNullifier(t *testing.T) {
 	c := futureChallenge("c-dup")
 	parsed := &verifier.ParsedInputs{
@@ -193,12 +235,12 @@ func TestLinkVerify_DuplicateNullifier409IncludesNullifier(t *testing.T) {
 		result: &linkverify.Result{Verified: true, Parsed: parsed},
 	}
 	fs := &fakeHTTPStore{
-		byID:      map[string]*store.Challenge{c.ID: c},
+		byID:      map[string]*store.Challenge{c.Challenge: c},
 		recordErr: store.ErrDuplicateNullifier,
 	}
 	h := NewRouter(linkverify.NewService(fv, fs), fs, nil, nil, testAppID, "")
 
-	w := postLinkVerify(t, h, validReq(c.ID))
+	w := postLinkVerify(t, h, validReq(c.Challenge))
 	if w.Code != http.StatusConflict {
 		t.Fatalf("status: got %d, want 409", w.Code)
 	}

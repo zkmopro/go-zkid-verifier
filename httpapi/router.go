@@ -12,7 +12,7 @@ import (
 func NewRouter(service *linkverify.Service, s store.Store, smtProvider *smtroot.Provider, issuerProvider *issuercert.Provider, appID, debugToken string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /challenge", createChallenge(s, appID))
-	mux.HandleFunc("GET /challenge/{id}", getChallenge(s, appID))
+	mux.HandleFunc("GET /challenge/{challenge}", getChallenge(s, appID))
 	if service != nil {
 		mux.HandleFunc("POST /link-verify", linkVerify(service))
 	}

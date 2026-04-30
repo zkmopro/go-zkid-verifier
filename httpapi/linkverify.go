@@ -19,8 +19,8 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 			return
 		}
 
-		if req.ChallengeID == "" {
-			jsonError(w, "challenge_id is required", http.StatusBadRequest)
+		if req.Challenge == "" {
+			jsonError(w, "challenge is required", http.StatusBadRequest)
 			return
 		}
 		if len(req.CertChainProof) == 0 || len(req.DeviceSigProof) == 0 {
@@ -34,7 +34,7 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 			return
 		}
 
-		result, err := service.VerifyAndRecord(r.Context(), req.ChallengeID, linkverify.Request{
+		result, err := service.VerifyAndRecord(r.Context(), req.Challenge, linkverify.Request{
 			CertChainProof: req.CertChainProof,
 			DeviceSigProof: req.DeviceSigProof,
 			ProofType:      pt,
@@ -68,7 +68,8 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 			switch result.Reason {
 			case linkverify.ReasonSmtRootMismatch,
 				linkverify.ReasonIssuerModulusMismatch,
-				linkverify.ReasonAppIDMismatch:
+				linkverify.ReasonAppIDMismatch,
+				linkverify.ReasonChallengeMismatch:
 				status = http.StatusConflict
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -79,12 +80,13 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 				SmtRoot:       result.SmtRoot,
 				IssuerModulus: result.IssuerModulus,
 				AppID:         result.AppID,
+				Challenge:     result.Challenge,
 			})
 			return
 		}
 		parsed := result.Parsed
-		log.Printf("link-verify parsed inputs: challenge_id=%s pk_commit=%s nullifier=%s app_id=%s smt_root=%s",
-			result.ChallengeID, parsed.PkCommit, parsed.Nullifier, parsed.AppID, parsed.SmtRoot)
+		log.Printf("link-verify parsed inputs: challenge=%s pk_commit=%s nullifier=%s app_id=%s smt_root=%s",
+			parsed.Challenge, parsed.PkCommit, parsed.Nullifier, parsed.AppID, parsed.SmtRoot)
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(VerifySuccessResponse{
@@ -97,6 +99,7 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 			SmtRoot:       result.SmtRoot,
 			IssuerModulus: result.IssuerModulus,
 			AppID:         result.AppID,
+			Challenge:     result.Challenge,
 		})
 	}
 }

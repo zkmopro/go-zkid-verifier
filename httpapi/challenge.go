@@ -10,9 +10,9 @@ import (
 )
 
 type ChallengeResponse struct {
-	ChallengeID string    `json:"challenge_id"`
-	AppID       string    `json:"app_id"`
-	ExpiresAt   time.Time `json:"expires_at"`
+	Challenge string    `json:"challenge"`
+	AppID     string    `json:"app_id"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 func createChallenge(s store.Store, appID string) http.HandlerFunc {
@@ -22,21 +22,21 @@ func createChallenge(s store.Store, appID string) http.HandlerFunc {
 			jsonError(w, "failed to create challenge", http.StatusInternalServerError)
 			return
 		}
-		log.Printf("issued challenge id=%s expires_at=%v", c.ID, c.ExpiresAt)
+		log.Printf("issued challenge=%s expires_at=%v", c.Challenge, c.ExpiresAt)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(ChallengeResponse{
-			ChallengeID: c.ID,
-			AppID:       appID,
-			ExpiresAt:   c.ExpiresAt,
+			Challenge: c.Challenge,
+			AppID:     appID,
+			ExpiresAt: c.ExpiresAt,
 		})
 	}
 }
 
 func getChallenge(s store.Store, appID string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
+		challenge := r.PathValue("challenge")
 
-		c, err := s.GetChallenge(r.Context(), id)
+		c, err := s.GetChallenge(r.Context(), challenge)
 		if err != nil {
 			log.Printf("get challenge error: %v", err)
 			jsonError(w, "internal server error", http.StatusInternalServerError)
@@ -52,9 +52,9 @@ func getChallenge(s store.Store, appID string) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(ChallengeResponse{
-			ChallengeID: c.ID,
-			AppID:       appID,
-			ExpiresAt:   c.ExpiresAt,
+			Challenge: c.Challenge,
+			AppID:     appID,
+			ExpiresAt: c.ExpiresAt,
 		})
 	}
 }
