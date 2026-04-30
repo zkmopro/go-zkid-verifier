@@ -39,7 +39,7 @@ jobs:
       - name: Clone zkID (pinned for reproducible builds)
         run: |
           git clone https://github.com/zkmopro/zkID.git zkID
-          cd zkID && git checkout 056736ae073cb06f3e5efb42172823ccf2c6b5eb
+          cd zkID && git checkout 397b9b4756f6324a86f5ef42ee4ad5af55954c79
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
