@@ -14,8 +14,7 @@ type Verifier struct {
 	KeysDir             string
 	SmtRoot             *smtroot.Provider
 	IssuerCert          *issuercert.Provider
-	ExpectedAppID       string // 62-char lowercase hex; for response display
-	ExpectedAppIDPacked string // little-endian packed decimal; matched constant-time
+	ExpectedAppID string // 31-char UTF-8 string; compared constant-time against parsed proof
 	Logger              smtroot.Logger
 }
 
@@ -109,8 +108,8 @@ func (v *Verifier) Verify(req Request) (*Result, error) {
 		}
 	}
 
-	if v.ExpectedAppIDPacked != "" {
-		outcome := checkAppID(parsed, v.ExpectedAppID, v.ExpectedAppIDPacked, v.Logger)
+	if v.ExpectedAppID != "" {
+		outcome := checkAppID(parsed, v.ExpectedAppID, v.Logger)
 		res.AppID = outcome
 		if !outcome.Match && res.Reason == "" {
 			res.Verified = false
@@ -124,11 +123,17 @@ func (v *Verifier) Verify(req Request) (*Result, error) {
 // value issued for this challenge (constant-time). Lives on Verifier so
 // the service layer can reuse it after the FFI verify completes.
 func (v *Verifier) CheckChallenge(parsed *verifier.ParsedInputs, expected string) *ChallengeOutcome {
-	match := subtle.ConstantTimeCompare([]byte(parsed.Challenge), []byte(expected)) == 1
+	// Normalise the proof's challenge signal (may be 0x-prefixed hex) to
+	// decimal before comparing with the decimal store key.
+	observed, err := verifier.NormalizeDecimal(parsed.Challenge)
+	if err != nil {
+		observed = parsed.Challenge
+	}
+	match := subtle.ConstantTimeCompare([]byte(observed), []byte(expected)) == 1
 	outcome := &ChallengeOutcome{
 		Match:    match,
 		Expected: expected,
-		Observed: parsed.Challenge,
+		Observed: observed,
 	}
 	level, event := "info", "challenge_check"
 	if !match {
@@ -209,14 +214,11 @@ func checkIssuerModulus(pt ProofType, parsed *verifier.ParsedInputs, provider *i
 	return outcome, nil
 }
 
-// checkAppID compares the packed field-element form (constant-time on the
-// decimal string), but reports the human-readable hex form so the response
-// stays compatible with existing API clients.
-func checkAppID(parsed *verifier.ParsedInputs, expectedHex, expectedPacked string, logger smtroot.Logger) *AppIDOutcome {
-	match := subtle.ConstantTimeCompare([]byte(parsed.AppIDPacked), []byte(expectedPacked)) == 1
+func checkAppID(parsed *verifier.ParsedInputs, expected string, logger smtroot.Logger) *AppIDOutcome {
+	match := subtle.ConstantTimeCompare([]byte(parsed.AppID), []byte(expected)) == 1
 	outcome := &AppIDOutcome{
 		Match:    match,
-		Expected: expectedHex,
+		Expected: expected,
 		Observed: parsed.AppID,
 	}
 	level, event := "info", "app_id_check"

@@ -10,7 +10,7 @@ Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plu
 4. The `app_id` reconstructed from device_sig public values matches the configured `APP_ID` env value (constant-time compare). The prover signs `APP_ID`; the resulting RSA signature derives the cardholder-bound `nullifier` inside the same circuit.
 5. The per-session `challenge` bound into the device-sig proof matches the value `/challenge` issued. The binding is a Semaphore-style dummy square (`challengeSquared <== challenge * challenge`) — see [PR#60 follow-on](https://github.com/zkmopro/zkID/pull/60). Stops replay of pre-generated proofs across sessions.
 
-`APP_ID` is one 31-byte value per relying party, set via env at server startup. `challenge` is per-session — a fresh decimal field element from `/challenge`, submitted with `/link-verify`, that the store consumes on success. The same value is bound into the device-sig proof.
+`APP_ID` is one 31-byte value per relying party, set via env at server startup as a plain 31-character UTF-8 string (e.g. `APP_ID=myapp-relying-party-id-here`). `challenge` is per-session — a fresh 254-bit decimal field element issued by `/challenge`, bound into the device-sig proof by the prover, and extracted server-side from the proof's public inputs at `/link-verify`. The server looks up the challenge from the proof (normalising hex to decimal if needed) and consumes it on success.
 
 ## Quickstart
 
@@ -69,12 +69,12 @@ No request body — call as a bare `POST`. Success body (200):
 ```json
 {
   "challenge": "<decimal field element>",
-  "app_id": "<62-char hex>",
+  "app_id": "<31-char UTF-8 string>",
   "expires_at": "2026-04-29T12:34:56Z"
 }
 ```
 
-`challenge` is a fresh 16-byte nonce interpreted big-endian as a decimal field element, with a 5-minute TTL. The prover folds it into the device-sig proof and submits it back at `/link-verify`; this is what binds the proof to the session. `app_id` echoes the server's configured `APP_ID` env so the prover knows which bytes to sign.
+`challenge` is a fresh 254-bit decimal field element (32 random bytes, top 2 bits cleared, big-endian), with a 5-minute TTL. The prover folds it into the device-sig proof; the server later extracts it from the proof's public inputs to bind the proof to this session. `app_id` echoes the server's configured `APP_ID` env so the prover knows which bytes to sign.
 
 ### `GET /challenge/{challenge}`
 
@@ -91,11 +91,10 @@ Re-fetches a still-live challenge by value. Response shape is identical to `POST
 
 ### `POST /link-verify`
 
-Request — `challenge` is whatever `/challenge` returned; the nullifier is derived server-side from the device_sig proof:
+Request — no `challenge` field; the challenge is extracted server-side from the device_sig proof's public inputs:
 
 ```json
 {
-  "challenge": "<decimal from /challenge>",
   "cert_chain_type": "rs2048",
   "cert_chain_proof": "<base64>",
   "device_sig_proof": "<base64>"
@@ -116,13 +115,15 @@ Success body (200):
   "parsed_inputs": {
     "pk_commit": "...",
     "nullifier": "...",
-    "app_id": "<62-char hex>",
+    "app_id": "<31-char UTF-8 string>",
+    "challenge": "<decimal>",
     "issuer_rsa_modulus": ["...", "..."],
     "smt_root": "0x..."
   },
   "smt_root":       { "issuer": "g2", "match": true, "expected": "0x…", "observed": "0x…", "trust_source": "onchain",  "trusted_at": "…" },
   "issuer_modulus": { "issuer": "g2", "match": true, "expected_sha256": "0xc4c4…", "trust_source": "embedded", "trusted_at": "…" },
-  "app_id":         { "match": true, "expected": "<APP_ID env hex>", "observed": "<proof hex>" }
+  "app_id":         { "match": true, "expected": "<APP_ID env>", "observed": "<proof app_id>" },
+  "challenge":      { "match": true, "expected": "<decimal>", "observed": "<decimal>" }
 }
 ```
 
@@ -136,11 +137,10 @@ The `smt_root`, `issuer_modulus`, and `app_id` blocks are each present whenever 
 | `200` | `verified=false, reason="proof_invalid"` — FFI rejected the proof. | Record **not** persisted, challenge **not** consumed. |
 | `400` | Request body malformed or missing `cert_chain_proof` / `device_sig_proof` / valid `cert_chain_type`. |  |
 | `400` | Challenge expired. | Challenge exists but passed its 5-minute TTL. |
-| `404` | Challenge not found. | `challenge` doesn't match any live row. |
+| `404` | Challenge not found. | The challenge extracted from the proof's public inputs doesn't match any issued challenge. |
 | `409` | `reason="smt_root_mismatch"` | Prover's `smt_root` disagrees with the trusted root — stale client. |
 | `409` | `reason="issuer_modulus_mismatch"` | Prover's issuer modulus doesn't match MOICA-G2/G3 — wrong-issuer proof. |
 | `409` | `reason="app_id_mismatch"` | The proof's `app_id` doesn't match the server's configured `APP_ID` — proof was minted for a different application. |
-| `409` | `reason="challenge_mismatch"` | The proof's bound `challenge` field element doesn't match the value submitted in the request — stale or replayed proof. Nullifier **not** recorded. |
 | `409` | Duplicate nullifier. | Same `nullifier` already verified. Response echoes `nullifier`. |
 | `410` | Challenge already consumed. |  |
 | `503` | Trust-anchor provider unavailable. | SMT root or issuer cert not cached — transient; retry. |
@@ -205,7 +205,7 @@ All via environment variables.
 | `DB_PATH` | `./zkid.db` | SQLite database path |
 | `KEYS_DIR` | `./keys` | Verifying-key directory (auto-downloaded) |
 | `CORS_ORIGIN` | `*` | `Access-Control-Allow-Origin` |
-| `APP_ID` | _(required)_ | 62-char lowercase hex of the application's stable 31-byte app_id. The prover signs these bytes; the verifier hard-fails on mismatch. Generate with `openssl rand -hex 31`. |
+| `APP_ID` | _(required)_ | Plain 31-character UTF-8 string identifying the relying party. The prover signs these bytes; the verifier hard-fails on mismatch. Example: `APP_ID=myapp-relying-party-id-here`. |
 | `SMT_ROOT_ENFORCE` | `strict` | `strict` = hard-fail on mismatch; `disabled` = skip (dev only) |
 | `SMT_ROOT_RPC_URL` | `https://sepolia-rollup.arbitrum.io/rpc` | Arbitrum Sepolia JSON-RPC |
 | `SMT_ROOT_CONTRACT` | `0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA` | `SMTRootStorage` address |
@@ -253,7 +253,7 @@ cmd/server          REST + gRPC server entrypoint
 cmd/verifier        Link-verify CLI (FFI smoke test)
 httpapi/            HTTP transport (router, handlers, DTOs, error mapping)
 grpc/               gRPC adapter over linkverify.Service
-linkverify/         Orchestrator: challenge lookup → FFI → parse → SMT check → issuer-modulus check → app_id check → record
+linkverify/         Orchestrator: FFI → parse → SMT check → issuer-modulus check → app_id check → challenge lookup → record
 verifier/           CGO FFI + public-signals parser
 smtroot/            Trusted revocation-root cache (onchain + GitHub fallback)
 issuercert/         Trusted MOICA issuer-cert cache (embedded + HTTPS, GRCA-chained)
@@ -274,14 +274,14 @@ v := &linkverify.Verifier{
     KeysDir:       keysDir,
     SmtRoot:       smtProvider,    // nil disables SMT check (dev/tests only)
     IssuerCert:    issuerProvider, // nil disables issuer-modulus check (dev/tests only)
-    ExpectedAppID: appID,          // 62-char hex; empty disables app_id check (dev/tests only)
+    ExpectedAppID: appID,          // 31-char UTF-8 string; empty disables app_id check (dev/tests only)
     Logger:        smtroot.DefaultLogger{},
 }
 service := linkverify.NewService(v, sqliteStore)
 
-// Both transports route through the same call. Caller supplies challenge;
-// nullifier is extracted server-side from the device_sig proof.
-res, err := service.VerifyAndRecord(ctx, challengeID, linkverify.Request{...})
+// Both transports route through the same call. Challenge and nullifier are
+// both extracted server-side from the device_sig proof's public inputs.
+res, err := service.VerifyAndRecord(ctx, linkverify.Request{...})
 ```
 
 Sentinel errors bubble unwrapped so each transport picks its own status code: `store.ErrChallengeNotFound`, `ErrChallengeExpired`, `ErrChallengeConsumed`, `ErrDuplicateNullifier`, `linkverify.ErrSmtRootUnavailable`, `linkverify.ErrIssuerCertUnavailable`.

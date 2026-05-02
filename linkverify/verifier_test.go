@@ -184,8 +184,8 @@ func TestCheckIssuerModulus_UnavailableWhenIssuerMissing(t *testing.T) {
 }
 
 func TestCheckAppID_Match(t *testing.T) {
-	parsed := &verifier.ParsedInputs{AppID: "0xabc123", AppIDPacked: "42"}
-	outcome := checkAppID(parsed, "0xabc123", "42", noopLogger{})
+	parsed := &verifier.ParsedInputs{AppID: "0xabc123"}
+	outcome := checkAppID(parsed, "0xabc123", noopLogger{})
 	if !outcome.Match {
 		t.Fatalf("expected Match=true, got %+v", outcome)
 	}
@@ -195,8 +195,8 @@ func TestCheckAppID_Match(t *testing.T) {
 }
 
 func TestCheckAppID_Mismatch(t *testing.T) {
-	parsed := &verifier.ParsedInputs{AppID: "0xabc123", AppIDPacked: "42"}
-	outcome := checkAppID(parsed, "0xdef456", "999", noopLogger{})
+	parsed := &verifier.ParsedInputs{AppID: "0xabc123"}
+	outcome := checkAppID(parsed, "0xdef456", noopLogger{})
 	if outcome.Match {
 		t.Fatalf("expected Match=false, got %+v", outcome)
 	}

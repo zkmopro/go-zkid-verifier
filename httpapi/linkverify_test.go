@@ -69,25 +69,14 @@ func postLinkVerify(t *testing.T, h http.Handler, body LinkVerifyRequest) *httpt
 	return w
 }
 
-func validReq(challenge string) LinkVerifyRequest {
+func validReq() LinkVerifyRequest {
 	return LinkVerifyRequest{
-		Challenge:      challenge,
 		CertChainType:  "rs2048",
 		CertChainProof: []byte("x"),
 		DeviceSigProof: []byte("x"),
 	}
 }
 
-func TestLinkVerify_MissingChallengeReturns400(t *testing.T) {
-	svc := linkverify.NewService(&fakeVerifier{}, &fakeHTTPStore{})
-	h := NewRouter(svc, &fakeHTTPStore{}, nil, nil, testAppID, "")
-
-	req := validReq("")
-	w := postLinkVerify(t, h, req)
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status: got %d, want 400", w.Code)
-	}
-}
 
 func TestLinkVerify_SmtRootMismatchReturns409(t *testing.T) {
 	c := futureChallenge("c-1")
@@ -107,7 +96,7 @@ func TestLinkVerify_SmtRootMismatchReturns409(t *testing.T) {
 	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	h := NewRouter(linkverify.NewService(fv, fs), fs, nil, nil, testAppID, "")
 
-	w := postLinkVerify(t, h, validReq(c.Challenge))
+	w := postLinkVerify(t, h, validReq())
 	if w.Code != http.StatusConflict {
 		t.Fatalf("status: got %d, want %d", w.Code, http.StatusConflict)
 	}
@@ -131,7 +120,7 @@ func TestLinkVerify_ProofInvalidStays200(t *testing.T) {
 	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	h := NewRouter(linkverify.NewService(fv, fs), fs, nil, nil, testAppID, "")
 
-	w := postLinkVerify(t, h, validReq(c.Challenge))
+	w := postLinkVerify(t, h, validReq())
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200", w.Code)
 	}
@@ -143,7 +132,7 @@ func TestLinkVerify_SmtRootUnavailableReturns503(t *testing.T) {
 	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	h := NewRouter(linkverify.NewService(fv, fs), fs, nil, nil, testAppID, "")
 
-	w := postLinkVerify(t, h, validReq(c.Challenge))
+	w := postLinkVerify(t, h, validReq())
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status: got %d, want 503", w.Code)
 	}
@@ -166,7 +155,7 @@ func TestLinkVerify_AppIDMismatchReturns409(t *testing.T) {
 	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	h := NewRouter(linkverify.NewService(fv, fs), fs, nil, nil, testAppID, "")
 
-	w := postLinkVerify(t, h, validReq(c.Challenge))
+	w := postLinkVerify(t, h, validReq())
 	if w.Code != http.StatusConflict {
 		t.Fatalf("status: got %d, want 409", w.Code)
 	}
@@ -183,45 +172,44 @@ func TestLinkVerify_AppIDMismatchReturns409(t *testing.T) {
 }
 
 func TestLinkVerify_ChallengeNotFoundReturns404(t *testing.T) {
-	fv := &fakeVerifier{}
+	fv := &fakeVerifier{
+		result: &linkverify.Result{
+			Verified: true,
+			Parsed:   &verifier.ParsedInputs{Nullifier: "n", Challenge: "no-such-challenge"},
+		},
+	}
 	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{}}
 	h := NewRouter(linkverify.NewService(fv, fs), fs, nil, nil, testAppID, "")
 
-	w := postLinkVerify(t, h, validReq("nope"))
+	w := postLinkVerify(t, h, validReq())
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status: got %d, want 404", w.Code)
 	}
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body["error"] == "" {
+		t.Errorf("expected error field in body: %s", w.Body.String())
+	}
 }
 
-// Regression for the freshness fix (PR#60 follow-on): a precomputed proof
-// must be rejected if its bound `challenge` signal disagrees with what
-// /challenge issued. Stale or replayed proofs hit this path before the
-// nullifier is recorded.
-func TestLinkVerify_ChallengeMismatchReturns409(t *testing.T) {
-	c := futureChallenge("111")
+// A proof whose bound challenge is not in the store is rejected with 404.
+// (Stale or replayed proofs hit this path before the nullifier is recorded.)
+func TestLinkVerify_UnknownChallengeReturns404(t *testing.T) {
 	parsed := &verifier.ParsedInputs{
 		Nullifier: "n-stale",
-		Challenge: "999", // does not match the stored "111"
+		Challenge: "999", // not in store
 	}
 	fv := &fakeVerifier{
 		result: &linkverify.Result{Verified: true, Parsed: parsed},
 	}
-	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{c.Challenge: c}}
+	fs := &fakeHTTPStore{byID: map[string]*store.Challenge{}}
 	h := NewRouter(linkverify.NewService(fv, fs), fs, nil, nil, testAppID, "")
 
-	w := postLinkVerify(t, h, validReq(c.Challenge))
-	if w.Code != http.StatusConflict {
-		t.Fatalf("status: got %d, want 409", w.Code)
-	}
-	var resp VerifyFailResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("decode: %v body=%s", err, w.Body.String())
-	}
-	if resp.Reason != linkverify.ReasonChallengeMismatch {
-		t.Errorf("Reason: got %q, want %q", resp.Reason, linkverify.ReasonChallengeMismatch)
-	}
-	if resp.Challenge == nil || resp.Challenge.Match {
-		t.Errorf("Challenge outcome: %+v", resp.Challenge)
+	w := postLinkVerify(t, h, validReq())
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status: got %d, want 404", w.Code)
 	}
 }
 
@@ -230,6 +218,7 @@ func TestLinkVerify_DuplicateNullifier409IncludesNullifier(t *testing.T) {
 	parsed := &verifier.ParsedInputs{
 		AppID:     "0xappid",
 		Nullifier: "null-123",
+		Challenge: c.Challenge,
 	}
 	fv := &fakeVerifier{
 		result: &linkverify.Result{Verified: true, Parsed: parsed},
@@ -240,7 +229,7 @@ func TestLinkVerify_DuplicateNullifier409IncludesNullifier(t *testing.T) {
 	}
 	h := NewRouter(linkverify.NewService(fv, fs), fs, nil, nil, testAppID, "")
 
-	w := postLinkVerify(t, h, validReq(c.Challenge))
+	w := postLinkVerify(t, h, validReq())
 	if w.Code != http.StatusConflict {
 		t.Fatalf("status: got %d, want 409", w.Code)
 	}

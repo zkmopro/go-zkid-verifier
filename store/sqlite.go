@@ -78,13 +78,15 @@ func (s *SQLiteStore) Close() error {
 }
 
 func (s *SQLiteStore) CreateChallenge(ctx context.Context) (*Challenge, error) {
-	var seed [16]byte
+	var seed [32]byte
 	if _, err := rand.Read(seed[:]); err != nil {
 		return nil, fmt.Errorf("generate challenge seed: %w", err)
 	}
-	// 16 random bytes interpreted big-endian as a decimal field-element
-	// string. Used as both the session lookup key and the value bound into
-	// the device-sig proof.
+	// 32 random bytes with the top 2 bits cleared → uniform in [0, 2^254),
+	// interpreted big-endian as a 254-bit decimal field-element string.
+	// Used as both the session lookup key and the value bound into the
+	// device-sig proof.
+	seed[0] &= 0x3f
 	challenge := new(big.Int).SetBytes(seed[:]).String()
 	expiresAt := time.Now().Add(s.ttl)
 

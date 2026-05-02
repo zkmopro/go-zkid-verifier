@@ -73,7 +73,7 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	result, err := s.service.VerifyAndRecord(ctx, req.Challenge, linkverify.Request{
+	result, err := s.service.VerifyAndRecord(ctx, linkverify.Request{
 		CertChainProof: req.CertChainProof,
 		DeviceSigProof: req.DeviceSigProof,
 		ProofType:      pt,

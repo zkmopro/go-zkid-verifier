@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -19,10 +20,6 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 			return
 		}
 
-		if req.Challenge == "" {
-			jsonError(w, "challenge is required", http.StatusBadRequest)
-			return
-		}
 		if len(req.CertChainProof) == 0 || len(req.DeviceSigProof) == 0 {
 			jsonError(w, "cert_chain_proof and device_sig_proof are required", http.StatusBadRequest)
 			return
@@ -34,7 +31,7 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 			return
 		}
 
-		result, err := service.VerifyAndRecord(r.Context(), req.Challenge, linkverify.Request{
+		result, err := service.VerifyAndRecord(r.Context(), linkverify.Request{
 			CertChainProof: req.CertChainProof,
 			DeviceSigProof: req.DeviceSigProof,
 			ProofType:      pt,
@@ -42,7 +39,11 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 		if err != nil {
 			switch {
 			case errors.Is(err, store.ErrChallengeNotFound):
-				jsonError(w, "challenge not found or already consumed", http.StatusNotFound)
+				challenge := ""
+				if result != nil && result.Parsed != nil {
+					challenge = result.Parsed.Challenge
+				}
+				jsonError(w, fmt.Sprintf("challenge not found or already consumed: %s", challenge), http.StatusNotFound)
 			case errors.Is(err, linkverify.ErrSmtRootUnavailable):
 				log.Printf("link-verify smt root unavailable: %v", err)
 				jsonError(w, "smt root provider unavailable, retry later", http.StatusServiceUnavailable)
