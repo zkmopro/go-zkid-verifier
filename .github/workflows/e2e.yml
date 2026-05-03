@@ -1,0 +1,88 @@
+name: E2E
+
+on:
+    push:
+    pull_request:
+        branches: [main]
+
+jobs:
+    e2e:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout go-zkid-verifier
+              uses: actions/checkout@v4
+              with:
+                  path: go-zkid-verifier
+
+            - name: Clone zkID (pinned for reproducible builds)
+              run: |
+                  git clone https://github.com/zkmopro/zkID.git zkID
+                  cd zkID && git checkout 397b9b4756f6324a86f5ef42ee4ad5af55954c79
+
+            - name: Stage circom artifacts from zkID release
+              working-directory: zkID/wallet-unit-poc
+              run: |
+                  mkdir -p circom/build/cpp
+                  cd circom/build/cpp
+                  for f in device_sig_rs2048.cpp device_sig_rs2048.dat; do
+                    curl -fL --retry 3 "https://github.com/zkmopro/zkID/releases/download/latest/${f}.gz" -o "${f}.gz"
+                    gunzip -f "${f}.gz"
+                  done
+
+            - name: Install Rust
+              uses: dtolnay/rust-toolchain@stable
+
+            - name: Install C++ toolchain (Linux)
+              if: runner.os == 'Linux'
+              run: sudo apt-get install -y g++ libstdc++-12-dev nasm libgmp-dev
+
+            - name: Cache Rust dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cargo/registry
+                      ~/.cargo/git
+                      go-zkid-verifier/rust/target
+                  key: ${{ runner.os }}-cargo-${{ hashFiles('go-zkid-verifier/rust/Cargo.lock') }}
+                  restore-keys: ${{ runner.os }}-cargo-
+
+            - name: Install Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version-file: go-zkid-verifier/go.mod
+                  cache: true
+
+            - name: Build Rust library and Go binaries
+              working-directory: go-zkid-verifier
+              run: make build
+
+            - name: Download verifying keys
+              working-directory: go-zkid-verifier
+              run: make download-keys
+
+            - name: Start server
+              working-directory: go-zkid-verifier
+              env:
+                  PORT: "8080"
+                  DB_PATH: /tmp/zkid-e2e.db
+                  APP_ID: e775f2805fb993e05a208dbff15d1c1
+                  SMT_ROOT_ENFORCE: disabled
+                  ISSUER_CERT_ENFORCE: disabled
+              run: ./zkid-server &
+
+            - name: Wait for server to be ready
+              run: |
+                  for i in $(seq 1 20); do
+                    if curl -sf -X POST http://localhost:8080/challenge -o /dev/null; then
+                      echo "Server ready after ${i}s"
+                      exit 0
+                    fi
+                    sleep 1
+                  done
+                  echo "Server did not become ready in 20s" >&2
+                  exit 1
+
+            - name: Run Rust e2e tests
+              working-directory: go-zkid-verifier/rust
+              run: cargo test --test e2e -- --test-threads=1
