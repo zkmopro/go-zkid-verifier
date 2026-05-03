@@ -25,7 +25,7 @@ jobs:
               run: |
                   mkdir -p circom/build/cpp
                   cd circom/build/cpp
-                  for f in device_sig_rs2048.cpp device_sig_rs2048.dat; do
+                  for f in device_sig_rs2048.cpp device_sig_rs2048.dat cert_chain_rs4096.cpp cert_chain_rs4096.dat; do
                     curl -fL --retry 3 "https://github.com/zkmopro/zkID/releases/download/latest/${f}.gz" -o "${f}.gz"
                     gunzip -f "${f}.gz"
                   done
@@ -85,4 +85,4 @@ jobs:
 
             - name: Run Rust e2e tests
               working-directory: go-zkid-verifier/rust
-              run: cargo test --test e2e -- --test-threads=1
+              run: cargo test --release --features proof-e2e -- --test-threads=1
