@@ -52,6 +52,7 @@ mod proof_e2e {
     #[derive(serde::Deserialize)]
     struct ChallengeResponse {
         challenge: String,
+        app_id: String,
         expires_at: chrono::DateTime<chrono::Utc>,
     }
 
@@ -117,121 +118,134 @@ mod proof_e2e {
         }
     }
 
-    fn generate_proof(challenge: String) -> reqwest::blocking::Response {
-        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    struct ProofRequest {
+        challenge: String,
+        app_id: String,
+        certb64: String,
+        signed_response: String,
+        issuer_cert: String,
+        smt_snapshot: Option<String>,
+    }
 
-        // Load RS4096 sign response: file → env var → fake testdata.
-        let real_rs4096_path = manifest.join(REAL_RS4096_SIGN_RESPONSE_PATH);
-        let response_str = if real_rs4096_path.exists() {
-            std::fs::read_to_string(&real_rs4096_path).unwrap()
-        } else if let Ok(content) = std::env::var("RS4096_SIGN_RESPONSE") {
-            content
-        } else {
-            std::fs::read_to_string(manifest.join(FAKE_CERT_RESPONSE_PATH)).unwrap()
-        };
-
-        // Load TW FIDO sign response: file → env var.
-        let real_tw_fido_path = manifest.join(REAL_TW_FIDO_SIGN_RESPONSE_PATH);
-        let tw_fido_response_str = if real_tw_fido_path.exists() {
-            Some(std::fs::read_to_string(&real_tw_fido_path).unwrap())
-        } else {
-            std::env::var("TW_FIDO_SIGN_RESPONSE").ok()
-        };
-        let tw_fido_response_str = tw_fido_response_str
-            .expect("TW_FIDO_SIGN_RESPONSE env var or file must be set");
-        let (certb64, signed_response) = serde_json::from_str::<AnySignResponse>(&tw_fido_response_str)
-            .expect("response JSON must be a MOICA G3 or HiPKI sign response")
-            .into_cert_and_sig();
-        let tbs = std::str::from_utf8(DEFAULT_TBS).unwrap().to_string();
-
-        // Use a temp dir as documents_path so input + key files stay isolated.
-        let tmp = tempfile::tempdir().unwrap();
-        let documents_path = tmp.path().to_string_lossy().to_string();
-        std::fs::create_dir_all(tmp.path().join("keys")).unwrap();
-
-        // Use G3-tree snapshot for SMT; download from release if not cached locally.
-        let g3_path = manifest.join(G3_SNAPSHOT_PATH);
-        if !g3_path.exists() {
-            if let Some(parent) = g3_path.parent() {
-                std::fs::create_dir_all(parent)
-                    .unwrap_or_else(|e| panic!("create {}: {e}", parent.display()));
+    impl ProofRequest {
+        fn new(challenge: impl Into<String>) -> Self {
+            let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+            let real_tw_fido_path = manifest.join(REAL_TW_FIDO_SIGN_RESPONSE_PATH);
+            let tw_fido_str = if real_tw_fido_path.exists() {
+                Some(std::fs::read_to_string(&real_tw_fido_path).unwrap())
+            } else {
+                std::env::var("TW_FIDO_SIGN_RESPONSE").ok()
+            };
+            let tw_fido_str = tw_fido_str.expect("TW_FIDO_SIGN_RESPONSE env var or file must be set");
+            let (certb64, signed_response) = serde_json::from_str::<AnySignResponse>(&tw_fido_str)
+                .expect("response JSON must be a MOICA G3 or HiPKI sign response")
+                .into_cert_and_sig();
+            Self {
+                challenge: challenge.into(),
+                app_id: std::str::from_utf8(DEFAULT_TBS).unwrap().to_string(),
+                certb64,
+                signed_response,
+                issuer_cert: manifest.join(ISSUER_CERT_G3).to_string_lossy().to_string(),
+                smt_snapshot: None,
             }
-            let bytes = reqwest::blocking::get(LATEST_G3_SNAPSHOT_URL)
-                .unwrap_or_else(|e| panic!("GET {} failed: {e}", LATEST_G3_SNAPSHOT_URL))
-                .bytes()
-                .unwrap_or_else(|e| panic!("reading snapshot: {e}"));
-            std::fs::write(&g3_path, &bytes)
-                .unwrap_or_else(|e| panic!("write {}: {e}", g3_path.display()));
-        }
-        let snapshot_path = g3_path.to_string_lossy().to_string();
-        let smt_snapshot = std::path::Path::new(&snapshot_path)
-            .exists()
-            .then(|| snapshot_path.clone());
-
-        let result = generate_cert_chain_rs4096_input(
-            certb64,
-            signed_response,
-            tbs,
-            ISSUER_CERT_G3.to_string(),
-            smt_snapshot,
-            documents_path.clone(),
-            challenge,
-        )
-        .unwrap();
-        assert!(result.contains("cert_chain"));
-        assert!(result.contains("device_sig"));
-
-        // Download pre-built proving + verifying keys into documents_path/keys/.
-        let keys_dir = tmp.path().join("keys");
-        for (url, filename) in [
-            (
-                CERT_CHAIN_RS4096_PROVING_KEY_URL,
-                "cert_chain_rs4096_proving.key",
-            ),
-            (
-                CERT_CHAIN_RS4096_VERIFYING_KEY_URL,
-                "cert_chain_rs4096_verifying.key",
-            ),
-            (
-                DEVICE_SIG_RS2048_PROVING_KEY_URL,
-                "device_sig_rs2048_proving.key",
-            ),
-            (
-                DEVICE_SIG_RS2048_VERIFYING_KEY_URL,
-                "device_sig_rs2048_verifying.key",
-            ),
-        ] {
-            download_and_gunzip(url, &keys_dir.join(filename));
         }
 
-        let cc_result = prove_cert_chain_rs4096(documents_path.clone()).unwrap();
-        println!("cert_chain proved in {}ms", cc_result.prove_ms);
-        let cc_ok = verify_cert_chain_rs4096(documents_path.clone()).unwrap();
-        assert!(cc_ok, "cert_chain_rs4096 verification failed");
+        fn app_id(mut self, id: impl Into<String>) -> Self {
+            self.app_id = id.into();
+            self
+        }
 
-        let ds_result = prove_device_sig_rs2048(documents_path.clone()).unwrap();
-        println!("device_sig proved in {}ms", ds_result.prove_ms);
-        let ds_ok = verify_device_sig_rs2048(documents_path.clone()).unwrap();
-        assert!(ds_ok, "device_sig_rs2048 verification failed");
+        fn issuer_cert(mut self, path: impl Into<String>) -> Self {
+            self.issuer_cert = path.into();
+            self
+        }
 
-        let linked = link_verify(documents_path.clone()).unwrap();
-        assert!(linked, "link verification failed");
+        fn cert_response(mut self, certb64: impl Into<String>, signed_response: impl Into<String>) -> Self {
+            self.certb64 = certb64.into();
+            self.signed_response = signed_response.into();
+            self
+        }
 
-        let cc_proof = std::fs::read(tmp.path().join("keys/cert_chain_rs4096_proof.bin")).unwrap();
-        let ds_proof = std::fs::read(tmp.path().join("keys/device_sig_rs2048_proof.bin")).unwrap();
+        fn smt_snapshot(mut self, path: impl Into<String>) -> Self {
+            self.smt_snapshot = Some(path.into());
+            self
+        }
 
-        let body = serde_json::json!({
-            "cert_chain_type": "rs4096",
-            "cert_chain_proof": STANDARD.encode(&cc_proof),
-            "device_sig_proof": STANDARD.encode(&ds_proof),
-        });
-        let resp = reqwest::blocking::Client::new()
-            .post(format!("{}/link-verify", BASE_URL))
-            .header("ngrok-skip-browser-warning", "true")
-            .json(&body)
-            .send()
-            .expect("POST /link-verify failed");
-        return resp;
+        fn run(self) -> reqwest::blocking::Response {
+            let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+            let tmp = tempfile::tempdir().unwrap();
+            let documents_path = tmp.path().to_string_lossy().to_string();
+            std::fs::create_dir_all(tmp.path().join("keys")).unwrap();
+
+            let smt_snapshot = self.smt_snapshot.or_else(|| {
+                let g3_path = manifest.join(G3_SNAPSHOT_PATH);
+                if !g3_path.exists() {
+                    if let Some(parent) = g3_path.parent() {
+                        std::fs::create_dir_all(parent)
+                            .unwrap_or_else(|e| panic!("create {}: {e}", parent.display()));
+                    }
+                    let bytes = reqwest::blocking::get(LATEST_G3_SNAPSHOT_URL)
+                        .unwrap_or_else(|e| panic!("GET {} failed: {e}", LATEST_G3_SNAPSHOT_URL))
+                        .bytes()
+                        .unwrap_or_else(|e| panic!("reading snapshot: {e}"));
+                    std::fs::write(&g3_path, &bytes)
+                        .unwrap_or_else(|e| panic!("write {}: {e}", g3_path.display()));
+                }
+                g3_path.exists().then(|| g3_path.to_string_lossy().to_string())
+            });
+
+            let result = generate_cert_chain_rs4096_input(
+                self.certb64,
+                self.signed_response,
+                self.app_id,
+                self.issuer_cert,
+                smt_snapshot,
+                documents_path.clone(),
+                self.challenge,
+            )
+            .unwrap();
+            assert!(result.contains("cert_chain"));
+            assert!(result.contains("device_sig"));
+
+            let keys_dir = tmp.path().join("keys");
+            for (url, filename) in [
+                (CERT_CHAIN_RS4096_PROVING_KEY_URL, "cert_chain_rs4096_proving.key"),
+                (CERT_CHAIN_RS4096_VERIFYING_KEY_URL, "cert_chain_rs4096_verifying.key"),
+                (DEVICE_SIG_RS2048_PROVING_KEY_URL, "device_sig_rs2048_proving.key"),
+                (DEVICE_SIG_RS2048_VERIFYING_KEY_URL, "device_sig_rs2048_verifying.key"),
+            ] {
+                download_and_gunzip(url, &keys_dir.join(filename));
+            }
+
+            let cc_result = prove_cert_chain_rs4096(documents_path.clone()).unwrap();
+            println!("cert_chain proved in {}ms", cc_result.prove_ms);
+            let cc_ok = verify_cert_chain_rs4096(documents_path.clone()).unwrap();
+            assert!(cc_ok, "cert_chain_rs4096 verification failed");
+
+            let ds_result = prove_device_sig_rs2048(documents_path.clone()).unwrap();
+            println!("device_sig proved in {}ms", ds_result.prove_ms);
+            let ds_ok = verify_device_sig_rs2048(documents_path.clone()).unwrap();
+            assert!(ds_ok, "device_sig_rs2048 verification failed");
+
+            let linked = link_verify(documents_path.clone()).unwrap();
+            assert!(linked, "link verification failed");
+
+            let cc_proof = std::fs::read(tmp.path().join("keys/cert_chain_rs4096_proof.bin")).unwrap();
+            let ds_proof = std::fs::read(tmp.path().join("keys/device_sig_rs2048_proof.bin")).unwrap();
+
+            let body = serde_json::json!({
+                "cert_chain_type": "rs4096",
+                "cert_chain_proof": STANDARD.encode(&cc_proof),
+                "device_sig_proof": STANDARD.encode(&ds_proof),
+            });
+            reqwest::blocking::Client::new()
+                .post(format!("{}/link-verify", BASE_URL))
+                .header("ngrok-skip-browser-warning", "true")
+                .json(&body)
+                .send()
+                .expect("POST /link-verify failed")
+        }
     }
 
     #[test]
@@ -242,7 +256,9 @@ mod proof_e2e {
             .expect("POST /challenge")
             .json()
             .expect("parse ChallengeResponse JSON");
-        let resp = generate_proof(body.challenge);
+        let resp = ProofRequest::new(&body.challenge)
+            .app_id(&body.app_id)
+            .run();
         let status = resp.status();
         let raw = resp
             .text()
@@ -259,8 +275,38 @@ mod proof_e2e {
     }
 
     #[test]
+    fn test_untrusted_ca() {
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+        let body: ChallengeResponse = client()
+            .post(format!("{BASE_URL}/challenge"))
+            .send()
+            .expect("POST /challenge")
+            .json()
+            .expect("parse ChallengeResponse JSON");
+
+        let fake_cert_str = std::fs::read_to_string(manifest.join(FAKE_CERT_RESPONSE_PATH))
+            .expect("FAKE_CERT_RESPONSE_PATH must exist");
+        let (certb64, signed_response) = serde_json::from_str::<AnySignResponse>(&fake_cert_str)
+            .expect("fake cert response must be valid AnySignResponse JSON")
+            .into_cert_and_sig();
+
+        let resp = ProofRequest::new(&body.challenge)
+            .app_id(&body.app_id)
+            .cert_response(certb64, signed_response)
+            .issuer_cert(manifest.join(FAKE_ISSUER_CERT_PATH).to_string_lossy())
+            .run();
+        let status = resp.status();
+        let raw = resp.text().unwrap_or_else(|e| format!("<failed to read body: {e}>"));
+        assert!(
+            !status.is_success(),
+            "expected rejection for untrusted CA, got {status}: {raw}"
+        );
+    }
+
+    #[test]
     fn test_invalid_challenge() {
-        let resp = generate_proof("1234567890".to_string());
+        let resp = ProofRequest::new("1234567890").run();
         let status = resp.status();
         let raw = resp.text().unwrap_or_else(|e| format!("<failed to read body: {e}>"));
         assert_eq!(
@@ -290,7 +336,7 @@ mod proof_e2e {
         println!("waiting {wait:?} for challenge to expire…");
         std::thread::sleep(wait);
 
-        let resp = generate_proof(body.challenge);
+        let resp = ProofRequest::new(&body.challenge).run();
         let status = resp.status();
         let raw = resp.text().unwrap_or_else(|e| format!("<failed to read body: {e}>"));
         assert_eq!(
