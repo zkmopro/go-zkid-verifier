@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"log"
 	"net"
@@ -23,7 +22,6 @@ import (
 	pb "github.com/zkmopro/go-zkid-verifier/proto/zkid/v1"
 	"github.com/zkmopro/go-zkid-verifier/smtroot"
 	"github.com/zkmopro/go-zkid-verifier/store"
-	verifierpkg "github.com/zkmopro/go-zkid-verifier/verifier"
 	"google.golang.org/grpc"
 )
 
@@ -60,23 +58,12 @@ func main() {
 	if appID == "" {
 		log.Fatal("APP_ID env var is required")
 	}
-	if l := len(appID); l != 2*store.AppIDLen {
-		log.Fatalf("APP_ID must be %d hex chars (got %d)", 2*store.AppIDLen, l)
+	if len(appID) != store.AppIDLen {
+		log.Fatalf("APP_ID must be exactly %d chars (got %d)", store.AppIDLen, len(appID))
 	}
-	appIDBytes, err := hex.DecodeString(appID)
-	if err != nil {
-		log.Fatalf("APP_ID is not valid hex: %v", err)
+	if !utf8.ValidString(appID) {
+		log.Fatalf("APP_ID must be valid UTF-8 (HiPKI /sign requires a UTF-8 payload)")
 	}
-	// HiPKI /sign takes a UTF-8 string; reject non-UTF-8 APP_ID at boot rather
-	// than letting the prover bail mid-flow.
-	if !utf8.Valid(appIDBytes) {
-		log.Fatalf("APP_ID hex-decodes to non-UTF-8 bytes; HiPKI /sign requires a UTF-8 payload. Regenerate with: APP_ID=$(LC_ALL=C tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 31 | xxd -p -c 62)")
-	}
-	appIDPacked, err := verifierpkg.PackAppIDLE(appIDBytes)
-	if err != nil {
-		log.Fatalf("APP_ID pack: %v", err)
-	}
-
 	debugToken := os.Getenv("DEBUG_TOKEN")
 
 	log.Printf("Checking verifying keys in %s...", keysDir)
@@ -106,8 +93,7 @@ func main() {
 		KeysDir:             keysDir,
 		SmtRoot:             provider,
 		IssuerCert:          issuerProvider,
-		ExpectedAppID:       appID,
-		ExpectedAppIDPacked: appIDPacked,
+		ExpectedAppID: appID,
 		Logger:              smtroot.DefaultLogger{},
 	}
 	if provider != nil {

@@ -1,7 +1,6 @@
 package verifier
 
 import (
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"strings"
@@ -53,10 +52,10 @@ func ParseCertChainRS4096(signals []string) (*CertChainRS4096PublicInputs, error
 // the verifier-issued per-session field element bound by a Semaphore-style
 // dummy square.
 type DeviceSigPublicInputs struct {
-	PkCommit     string
-	Nullifier    string
-	AppIDPacked  string
-	Challenge    string
+	PkCommit    string
+	Nullifier   string
+	AppIDPacked string
+	Challenge   string
 }
 
 const ExpectedDeviceSigSignals = 4
@@ -71,6 +70,20 @@ func ParseDeviceSig(signals []string) (*DeviceSigPublicInputs, error) {
 		AppIDPacked: signals[2],
 		Challenge:   signals[3],
 	}, nil
+}
+
+// NormalizeDecimal converts a 0x-prefixed hex field element to its canonical
+// decimal string. Non-prefixed strings are returned unchanged.
+func NormalizeDecimal(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if !strings.HasPrefix(s, "0x") && !strings.HasPrefix(s, "0X") {
+		return s, nil
+	}
+	n, ok := new(big.Int).SetString(s[2:], 16)
+	if !ok {
+		return "", fmt.Errorf("invalid hex field element %q", s)
+	}
+	return n.String(), nil
 }
 
 // PackAppIDLE encodes 31 bytes as a little-endian field-element decimal
@@ -88,9 +101,9 @@ func PackAppIDLE(b []byte) (string, error) {
 	return new(big.Int).SetBytes(rev).String(), nil
 }
 
-// UnpackAppIDHex turns a packed decimal field element back into a 62-char
-// lowercase hex string of the original 31 bytes (little-endian interpretation).
-func UnpackAppIDHex(packed string) (string, error) {
+// UnpackAppID turns a packed decimal field element back into the original
+// 31-byte UTF-8 string (little-endian interpretation).
+func UnpackAppID(packed string) (string, error) {
 	s := strings.TrimSpace(packed)
 	base := 10
 	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
@@ -115,7 +128,7 @@ func UnpackAppIDHex(packed string) (string, error) {
 	for i := 0; i < len(raw); i++ {
 		out[i] = raw[len(raw)-1-i]
 	}
-	return hex.EncodeToString(out), nil
+	return string(out), nil
 }
 
 type ParsedInputs struct {
@@ -137,7 +150,7 @@ func ParsePublicInputsRS2048(certChain, deviceSig []string) (*ParsedInputs, erro
 	if err != nil {
 		return nil, fmt.Errorf("device_sig: %w", err)
 	}
-	appID, err := UnpackAppIDHex(ds.AppIDPacked)
+	appID, err := UnpackAppID(ds.AppIDPacked)
 	if err != nil {
 		return nil, fmt.Errorf("device_sig: %w", err)
 	}
@@ -161,7 +174,7 @@ func ParsePublicInputsRS4096(certChain, deviceSig []string) (*ParsedInputs, erro
 	if err != nil {
 		return nil, fmt.Errorf("device_sig: %w", err)
 	}
-	appID, err := UnpackAppIDHex(ds.AppIDPacked)
+	appID, err := UnpackAppID(ds.AppIDPacked)
 	if err != nil {
 		return nil, fmt.Errorf("device_sig: %w", err)
 	}

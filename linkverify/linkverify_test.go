@@ -1,6 +1,7 @@
 package linkverify
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -277,9 +278,13 @@ func TestServiceChallenge_RealProof(t *testing.T) {
 	v := &Verifier{KeysDir: keysDir, Logger: smtroot.DefaultLogger{}}
 
 	t.Run("match", func(t *testing.T) {
-		c := futureChallenge(parsed.Challenge)
+		key, err := verifier.NormalizeDecimal(parsed.Challenge)
+		if err != nil {
+			t.Fatalf("NormalizeDecimal: %v", err)
+		}
+		c := futureChallenge(key)
 		fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
-		res, err := NewService(v, fs).VerifyAndRecord(t.Context(), c.Challenge, Request{
+		res, err := NewService(v, fs).VerifyAndRecord(t.Context(), Request{
 			CertChainProof: ccProof, DeviceSigProof: dsProof, ProofType: ProofTypeRS2048,
 		})
 		if err != nil {
@@ -294,20 +299,13 @@ func TestServiceChallenge_RealProof(t *testing.T) {
 	})
 
 	t.Run("mismatch", func(t *testing.T) {
-		// Stored challenge differs from the value bound into the proof.
-		c := futureChallenge("999999999")
-		fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
-		res, err := NewService(v, fs).VerifyAndRecord(t.Context(), c.Challenge, Request{
+		// Store does not contain the challenge bound into the proof.
+		fs := &fakeStore{byID: map[string]*store.Challenge{}}
+		_, err := NewService(v, fs).VerifyAndRecord(t.Context(), Request{
 			CertChainProof: ccProof, DeviceSigProof: dsProof, ProofType: ProofTypeRS2048,
 		})
-		if err != nil {
-			t.Fatalf("VerifyAndRecord: %v", err)
-		}
-		if res.Verified || res.Reason != ReasonChallengeMismatch {
-			t.Fatalf("expected ChallengeMismatch, got verified=%v reason=%q", res.Verified, res.Reason)
-		}
-		if res.Persisted || len(fs.recordedCalls) != 0 {
-			t.Fatalf("nullifier must not be recorded on stale challenge: persisted=%v calls=%d", res.Persisted, len(fs.recordedCalls))
+		if !errors.Is(err, store.ErrChallengeNotFound) {
+			t.Fatalf("expected ErrChallengeNotFound, got %v", err)
 		}
 	})
 }

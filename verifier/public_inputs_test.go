@@ -1,7 +1,6 @@
 package verifier
 
 import (
-	"encoding/hex"
 	"testing"
 )
 
@@ -58,20 +57,35 @@ func TestPackUnpackAppIDRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PackAppIDLE: %v", err)
 		}
-		got, err := UnpackAppIDHex(packed)
+		got, err := UnpackAppID(packed)
 		if err != nil {
-			t.Fatalf("UnpackAppIDHex: %v", err)
+			t.Fatalf("UnpackAppID: %v", err)
 		}
-		if got != hex.EncodeToString(b) {
-			t.Errorf("round-trip mismatch: got %s, want %s", got, hex.EncodeToString(b))
+		if got != string(b) {
+			t.Errorf("round-trip mismatch: got %q, want %q", got, string(b))
 		}
+	}
+}
+
+func TestPackUnpackAppIDKnownValue(t *testing.T) {
+	appID := "7a635353567978587232424230694e7"
+	packed, err := PackAppIDLE([]byte(appID))
+	if err != nil {
+		t.Fatalf("PackAppIDLE: %v", err)
+	}
+	got, err := UnpackAppID(packed)
+	if err != nil {
+		t.Fatalf("UnpackAppID: %v", err)
+	}
+	if got != appID {
+		t.Errorf("got %q, want %q", got, appID)
 	}
 }
 
 func TestUnpackAppIDRejectsOversize(t *testing.T) {
 	// 32-byte value (overflows the 31-byte budget for app_id).
 	tooBig := "0x" + "01" + repeat("00", 31)
-	if _, err := UnpackAppIDHex(tooBig); err == nil {
+	if _, err := UnpackAppID(tooBig); err == nil {
 		t.Error("expected error for >31-byte packed value")
 	}
 }

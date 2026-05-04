@@ -77,10 +77,11 @@ func newService(v ProofVerifier, s store.Store) *Service {
 	return &Service{verifier: v, store: s}
 }
 
-func successParsed(appID, nullifier string) *verifier.ParsedInputs {
+func successParsed(appID, nullifier, challenge string) *verifier.ParsedInputs {
 	return &verifier.ParsedInputs{
 		AppID:     appID,
 		Nullifier: nullifier,
+		Challenge: challenge,
 	}
 }
 
@@ -93,16 +94,16 @@ func expiredChallenge(challenge string) *store.Challenge {
 }
 
 func TestVerifyAndRecord_Success(t *testing.T) {
-	parsed := successParsed("0xappid", "n-1")
+	c := futureChallenge("chal-1")
+	parsed := successParsed("0xappid", "n-1", c.Challenge)
 	fv := &fakeVerifier{
 		result: &Result{Verified: true, Parsed: parsed},
 	}
-	c := futureChallenge("chal-1")
 	fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	svc := newService(fv, fs)
 
 	pt := ProofTypeRS2048
-	pr, err := svc.VerifyAndRecord(context.Background(), c.Challenge, Request{ProofType: pt})
+	pr, err := svc.VerifyAndRecord(context.Background(), Request{ProofType: pt})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -125,55 +126,48 @@ func TestVerifyAndRecord_Success(t *testing.T) {
 }
 
 func TestVerifyAndRecord_ChallengeNotFound(t *testing.T) {
-	fv := &fakeVerifier{t: t}
-	fv.failIfRun = func(tt *testing.T) {
-		tt.Fatal("Verifier.Verify must not run when challenge is missing")
+	parsed := successParsed("0xappid", "n-1", "nope")
+	fv := &fakeVerifier{
+		result: &Result{Verified: true, Parsed: parsed},
 	}
 	fs := &fakeStore{byID: map[string]*store.Challenge{}}
 	svc := newService(fv, fs)
 
-	pr, err := svc.VerifyAndRecord(context.Background(), "nope", Request{ProofType: ProofTypeRS2048})
-	if pr != nil {
-		t.Errorf("expected nil ProcessResult, got %+v", pr)
-	}
+	pr, err := svc.VerifyAndRecord(context.Background(), Request{ProofType: ProofTypeRS2048})
 	if !errors.Is(err, store.ErrChallengeNotFound) {
 		t.Fatalf("error: got %v, want ErrChallengeNotFound", err)
 	}
-	if fv.called {
-		t.Error("verifier was called; expected short-circuit before verify")
+	if pr == nil || pr.Parsed == nil || pr.Parsed.Challenge != "nope" {
+		t.Errorf("expected partial result with challenge, got %+v", pr)
 	}
 }
 
 func TestVerifyAndRecord_ChallengeExpired(t *testing.T) {
-	fv := &fakeVerifier{t: t}
-	fv.failIfRun = func(tt *testing.T) {
-		tt.Fatal("Verifier.Verify must not run when challenge is expired")
-	}
 	c := expiredChallenge("c-exp")
+	parsed := successParsed("0xappid", "n-1", c.Challenge)
+	fv := &fakeVerifier{
+		result: &Result{Verified: true, Parsed: parsed},
+	}
 	fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 	svc := newService(fv, fs)
 
-	pr, err := svc.VerifyAndRecord(context.Background(), c.Challenge, Request{ProofType: ProofTypeRS2048})
-	if pr != nil {
-		t.Errorf("expected nil ProcessResult, got %+v", pr)
-	}
+	pr, err := svc.VerifyAndRecord(context.Background(), Request{ProofType: ProofTypeRS2048})
 	if !errors.Is(err, store.ErrChallengeExpired) {
 		t.Fatalf("error: got %v, want ErrChallengeExpired", err)
 	}
-	if fv.called {
-		t.Error("verifier was called; expected short-circuit before verify")
+	if pr == nil || pr.Parsed == nil || pr.Parsed.Challenge != c.Challenge {
+		t.Errorf("expected partial result with challenge, got %+v", pr)
 	}
 }
 
 func TestVerifyAndRecord_ProofInvalid(t *testing.T) {
-	c := futureChallenge("c-3")
 	fv := &fakeVerifier{
 		result: &Result{Verified: false, Reason: "proof_invalid"},
 	}
-	fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
+	fs := &fakeStore{byID: map[string]*store.Challenge{}}
 	svc := newService(fv, fs)
 
-	pr, err := svc.VerifyAndRecord(context.Background(), c.Challenge, Request{ProofType: ProofTypeRS2048})
+	pr, err := svc.VerifyAndRecord(context.Background(), Request{ProofType: ProofTypeRS2048})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -192,20 +186,19 @@ func TestVerifyAndRecord_ProofInvalid(t *testing.T) {
 }
 
 func TestVerifyAndRecord_AppIDMismatchNotPersisted(t *testing.T) {
-	c := futureChallenge("c-am")
 	outcome := &AppIDOutcome{Match: false, Expected: "0xexpected", Observed: "0xobserved"}
 	fv := &fakeVerifier{
 		result: &Result{
 			Verified: false,
 			Reason:   ReasonAppIDMismatch,
-			Parsed:   successParsed("0xobserved", "n-app"),
+			Parsed:   successParsed("0xobserved", "n-app", ""),
 			AppID:    outcome,
 		},
 	}
-	fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
+	fs := &fakeStore{byID: map[string]*store.Challenge{}}
 	svc := newService(fv, fs)
 
-	pr, err := svc.VerifyAndRecord(context.Background(), c.Challenge, Request{ProofType: ProofTypeRS2048})
+	pr, err := svc.VerifyAndRecord(context.Background(), Request{ProofType: ProofTypeRS2048})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -232,7 +225,7 @@ func TestVerifyAndRecord_AppIDMismatchNotPersisted(t *testing.T) {
 func TestVerifyAndRecord_DuplicateNullifier(t *testing.T) {
 	c := futureChallenge("c-dup")
 	fv := &fakeVerifier{
-		result: &Result{Verified: true, Parsed: successParsed("0xappid", "dup")},
+		result: &Result{Verified: true, Parsed: successParsed("0xappid", "dup", c.Challenge)},
 	}
 	fs := &fakeStore{
 		byID:      map[string]*store.Challenge{c.Challenge: c},
@@ -240,7 +233,7 @@ func TestVerifyAndRecord_DuplicateNullifier(t *testing.T) {
 	}
 	svc := newService(fv, fs)
 
-	pr, err := svc.VerifyAndRecord(context.Background(), c.Challenge, Request{ProofType: ProofTypeRS2048})
+	pr, err := svc.VerifyAndRecord(context.Background(), Request{ProofType: ProofTypeRS2048})
 	if !errors.Is(err, store.ErrDuplicateNullifier) {
 		t.Fatalf("error: got %v, want ErrDuplicateNullifier", err)
 	}
@@ -253,12 +246,11 @@ func TestVerifyAndRecord_DuplicateNullifier(t *testing.T) {
 }
 
 func TestVerifyAndRecord_VerifierError(t *testing.T) {
-	c := futureChallenge("c-err")
 	fv := &fakeVerifier{err: errors.New("boom")}
-	fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
+	fs := &fakeStore{byID: map[string]*store.Challenge{}}
 	svc := newService(fv, fs)
 
-	pr, err := svc.VerifyAndRecord(context.Background(), c.Challenge, Request{ProofType: ProofTypeRS2048})
+	pr, err := svc.VerifyAndRecord(context.Background(), Request{ProofType: ProofTypeRS2048})
 	if pr != nil {
 		t.Errorf("expected nil ProcessResult, got %+v", pr)
 	}
