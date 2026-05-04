@@ -14,8 +14,10 @@ mod proof_e2e {
 
     const BASE_URL: &str = "http://localhost:8080";
 
-    const OUTDATED_G2_SNAPSHOT_PATH: &str = "tests/data/outdated-g3-tree-snapshot.json.gz";
+    const OUTDATED_G2_SNAPSHOT_PATH: &str = "tests/data/outdated-g2-tree-snapshot.json.gz";
     const OUTDATED_G3_SNAPSHOT_PATH: &str = "tests/data/outdated-g3-tree-snapshot.json.gz";
+    const G2_SNAPSHOT_PATH: &str = "tests/data/g2-tree-snapshot.json.gz";
+    const G3_SNAPSHOT_PATH: &str = "tests/data/g3-tree-snapshot.json.gz";
     const LATEST_G2_SNAPSHOT_URL: &str = "https://github.com/moven0831/moica-revocation-smt/releases/download/snapshot-latest/g2-tree-snapshot.json.gz";
     const LATEST_G3_SNAPSHOT_URL: &str = "https://github.com/moven0831/moica-revocation-smt/releases/download/snapshot-latest/g3-tree-snapshot.json.gz";
     const CERT_CHAIN_RS4096_PROVING_KEY_URL: &str =
@@ -34,6 +36,8 @@ mod proof_e2e {
 
     const REAL_TW_FIDO_SIGN_RESPONSE_PATH: &str = "tests/data/tw_fido_sign_response.json";
     const REAL_RS4096_SIGN_RESPONSE_PATH: &str = "tests/data/rs4096_sign_response.json";
+
+    const ISSUER_CERT_G3: &str = "tests/data/moica-g3.cer";
 
     use std::path::PathBuf;
 
@@ -127,34 +131,47 @@ mod proof_e2e {
 
         // Load TW FIDO sign response: file → env var.
         let real_tw_fido_path = manifest.join(REAL_TW_FIDO_SIGN_RESPONSE_PATH);
-        let _tw_fido_response_str = if real_tw_fido_path.exists() {
+        let tw_fido_response_str = if real_tw_fido_path.exists() {
             Some(std::fs::read_to_string(&real_tw_fido_path).unwrap())
         } else {
             std::env::var("TW_FIDO_SIGN_RESPONSE").ok()
         };
-        let (certb64, signed_response) = serde_json::from_str::<AnySignResponse>(&response_str)
+        let tw_fido_response_str = tw_fido_response_str
+            .expect("TW_FIDO_SIGN_RESPONSE env var or file must be set");
+        let (certb64, signed_response) = serde_json::from_str::<AnySignResponse>(&tw_fido_response_str)
             .expect("response JSON must be a MOICA G3 or HiPKI sign response")
             .into_cert_and_sig();
         let tbs = std::str::from_utf8(DEFAULT_TBS).unwrap().to_string();
-        let issuer_cert_path = manifest
-            .join("../../zkID/wallet-unit-poc/ecdsa-spartan2/tests/testdata/test_ca_rs4096.der");
 
         // Use a temp dir as documents_path so input + key files stay isolated.
         let tmp = tempfile::tempdir().unwrap();
         let documents_path = tmp.path().to_string_lossy().to_string();
         std::fs::create_dir_all(tmp.path().join("keys")).unwrap();
 
-        // Use G3-tree snapshot for SMT if present.
-        let snapshot_path = "/tmp/g3-tree-snapshot.json.gz";
-        let smt_snapshot = std::path::Path::new(snapshot_path)
+        // Use G3-tree snapshot for SMT; download from release if not cached locally.
+        let g3_path = manifest.join(G3_SNAPSHOT_PATH);
+        if !g3_path.exists() {
+            if let Some(parent) = g3_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .unwrap_or_else(|e| panic!("create {}: {e}", parent.display()));
+            }
+            let bytes = reqwest::blocking::get(LATEST_G3_SNAPSHOT_URL)
+                .unwrap_or_else(|e| panic!("GET {} failed: {e}", LATEST_G3_SNAPSHOT_URL))
+                .bytes()
+                .unwrap_or_else(|e| panic!("reading snapshot: {e}"));
+            std::fs::write(&g3_path, &bytes)
+                .unwrap_or_else(|e| panic!("write {}: {e}", g3_path.display()));
+        }
+        let snapshot_path = g3_path.to_string_lossy().to_string();
+        let smt_snapshot = std::path::Path::new(&snapshot_path)
             .exists()
-            .then(|| snapshot_path.to_string());
+            .then(|| snapshot_path.clone());
 
         let result = generate_cert_chain_rs4096_input(
             certb64,
             signed_response,
             tbs,
-            issuer_cert_path.to_string_lossy().to_string(),
+            ISSUER_CERT_G3.to_string(),
             smt_snapshot,
             documents_path.clone(),
             challenge,
