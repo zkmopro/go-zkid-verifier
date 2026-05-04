@@ -29,6 +29,13 @@ jobs:
                     curl -fL --retry 3 "https://github.com/zkmopro/zkID/releases/download/latest/${f}.gz" -o "${f}.gz"
                     gunzip -f "${f}.gz"
                   done
+                  cd ../../..
+                  for c in cert_chain_rs4096 device_sig_rs2048 cert_chain_rs2048; do
+                    mkdir -p "circom/build/${c}/${c}_js"
+                    curl -fL --retry 3 "https://github.com/zkmopro/zkID/releases/download/latest/${c}.r1cs.gz" \
+                      -o "circom/build/${c}/${c}_js/${c}.r1cs.gz"
+                    gunzip -f "circom/build/${c}/${c}_js/${c}.r1cs.gz"
+                  done
 
             - name: Install Rust
               uses: dtolnay/rust-toolchain@stable
