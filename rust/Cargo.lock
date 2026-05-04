@@ -4362,6 +4362,7 @@ dependencies = [
  "chrono",
  "ecdsa-spartan2",
  "ff",
+ "flate2",
  "openac-mobile-app",
  "reqwest",
  "serde",

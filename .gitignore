@@ -9,3 +9,6 @@ lib/
 /server
 *.db
 .env
+
+rs4096_sign_response.json
+tw_fido_sign_response.json
