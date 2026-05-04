@@ -22,5 +22,6 @@ openac-mobile-app = { path = "../../zkID/wallet-unit-poc/mobile", optional = tru
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
 tempfile = "3"

@@ -4358,6 +4358,7 @@ dependencies = [
 name = "zk_verifier"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "chrono",
  "ecdsa-spartan2",
  "ff",

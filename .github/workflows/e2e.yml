@@ -18,7 +18,7 @@ jobs:
             - name: Clone zkID (pinned for reproducible builds)
               run: |
                   git clone https://github.com/zkmopro/zkID.git zkID
-                  cd zkID && git checkout 397b9b4756f6324a86f5ef42ee4ad5af55954c79
+                  cd zkID && git checkout main
 
             - name: Stage circom artifacts from zkID release
               working-directory: zkID/wallet-unit-poc
