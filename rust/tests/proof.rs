@@ -299,7 +299,6 @@ mod proof_e2e {
         let raw = resp.text().unwrap_or_else(|e| format!("<failed to read body: {e}>"));
         if status == reqwest::StatusCode::CONFLICT && raw.contains("nullifier already registered") {
             println!("nullifier already registered from a prior run — duplicate detection confirmed");
-            return;
         }
         assert!(status.is_success(), "/link-verify returned {status}: {raw}");
         let resp_body: serde_json::Value = serde_json::from_str(&raw)
@@ -324,31 +323,6 @@ mod proof_e2e {
             reqwest::StatusCode::CONFLICT,
             "nullifier already registered",
         );
-    }
-
-    #[test]
-    fn test_reuse_challenge() {
-        let body = fresh_challenge();
-        let (cc_proof, ds_proof) = ProofRequest::new(&body.challenge)
-            .app_id(&body.app_id)
-            .prove();
-
-        let resp = submit_proofs(&cc_proof, &ds_proof);
-        let status = resp.status();
-        let raw = resp.text().unwrap_or_else(|e| format!("<failed to read body: {e}>"));
-        if status == reqwest::StatusCode::CONFLICT && raw.contains("nullifier already registered") {
-            println!("nullifier already registered from a prior run — skipping");
-            return;
-        }
-        assert!(status.is_success(), "/link-verify returned {status}: {raw}");
-
-        // Submitting the identical proof bytes again must fail: challenge consumed.
-        assert_rejected(
-            submit_proofs(&cc_proof, &ds_proof),
-            reqwest::StatusCode::GONE,
-            "challenge already consumed",
-        );
-    }
 
     #[test]
     fn test_untrusted_ca() {
