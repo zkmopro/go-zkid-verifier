@@ -323,6 +323,7 @@ mod proof_e2e {
             reqwest::StatusCode::CONFLICT,
             "nullifier already registered",
         );
+    }
 
     #[test]
     fn test_untrusted_ca() {
