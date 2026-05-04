@@ -16,10 +16,14 @@ const OUTDATED_G2_SNAPSHOT_PATH: &str = "tests/data/outdated-g3-tree-snapshot.js
 const OUTDATED_G3_SNAPSHOT_PATH: &str = "tests/data/outdated-g3-tree-snapshot.json.gz";
 const LATEST_G2_SNAPSHOT_URL: &str = "https://github.com/moven0831/moica-revocation-smt/releases/download/snapshot-latest/g2-tree-snapshot.json.gz";
 const LATEST_G3_SNAPSHOT_URL: &str = "https://github.com/moven0831/moica-revocation-smt/releases/download/snapshot-latest/g3-tree-snapshot.json.gz";
-const CERT_CHAIN_RS4096_PROVING_KEY_URL: &str = "https://github.com/zkmopro/zkID/releases/download/latest/cert_chain_rs4096_proving.key.gz";
-const CERT_CHAIN_RS4096_VERIFYING_KEY_URL: &str = "https://github.com/zkmopro/zkID/releases/download/latest/cert_chain_rs4096_verifying.key.gz";
-const DEVICE_SIG_RS2048_PROVING_KEY_URL: &str = "https://github.com/zkmopro/zkID/releases/download/latest/device_sig_rs2048_proving.key.gz";
-const DEVICE_SIG_RS2048_VERIFYING_KEY_URL: &str = "https://github.com/zkmopro/zkID/releases/download/latest/device_sig_rs2048_verifying.key.gz";
+const CERT_CHAIN_RS4096_PROVING_KEY_URL: &str =
+    "https://github.com/zkmopro/zkID/releases/download/latest/cert_chain_rs4096_proving.key.gz";
+const CERT_CHAIN_RS4096_VERIFYING_KEY_URL: &str =
+    "https://github.com/zkmopro/zkID/releases/download/latest/cert_chain_rs4096_verifying.key.gz";
+const DEVICE_SIG_RS2048_PROVING_KEY_URL: &str =
+    "https://github.com/zkmopro/zkID/releases/download/latest/device_sig_rs2048_proving.key.gz";
+const DEVICE_SIG_RS2048_VERIFYING_KEY_URL: &str =
+    "https://github.com/zkmopro/zkID/releases/download/latest/device_sig_rs2048_verifying.key.gz";
 
 const FAKE_CERT_RESPONSE_PATH: &str =
     "../../zkID/wallet-unit-poc/ecdsa-spartan2/tests/testdata/rs4096_response_sign.json";
@@ -49,8 +53,7 @@ mod proof_e2e {
         let mut decoder = flate2::read::GzDecoder::new(bytes.as_ref());
         let mut file = std::fs::File::create(dest)
             .unwrap_or_else(|e| panic!("create {}: {e}", dest.display()));
-        std::io::copy(&mut decoder, &mut file)
-            .unwrap_or_else(|e| panic!("decompress {url}: {e}"));
+        std::io::copy(&mut decoder, &mut file).unwrap_or_else(|e| panic!("decompress {url}: {e}"));
     }
 
     // Two distinct API shapes that both carry a cert + signature:
@@ -152,10 +155,22 @@ mod proof_e2e {
         // Download pre-built proving + verifying keys into documents_path/keys/.
         let keys_dir = tmp.path().join("keys");
         for (url, filename) in [
-            (super::CERT_CHAIN_RS4096_PROVING_KEY_URL,   "cert_chain_rs4096_proving.key"),
-            (super::CERT_CHAIN_RS4096_VERIFYING_KEY_URL, "cert_chain_rs4096_verifying.key"),
-            (super::DEVICE_SIG_RS2048_PROVING_KEY_URL,   "device_sig_rs2048_proving.key"),
-            (super::DEVICE_SIG_RS2048_VERIFYING_KEY_URL, "device_sig_rs2048_verifying.key"),
+            (
+                super::CERT_CHAIN_RS4096_PROVING_KEY_URL,
+                "cert_chain_rs4096_proving.key",
+            ),
+            (
+                super::CERT_CHAIN_RS4096_VERIFYING_KEY_URL,
+                "cert_chain_rs4096_verifying.key",
+            ),
+            (
+                super::DEVICE_SIG_RS2048_PROVING_KEY_URL,
+                "device_sig_rs2048_proving.key",
+            ),
+            (
+                super::DEVICE_SIG_RS2048_VERIFYING_KEY_URL,
+                "device_sig_rs2048_verifying.key",
+            ),
         ] {
             download_and_gunzip(url, &keys_dir.join(filename));
         }
@@ -175,6 +190,7 @@ mod proof_e2e {
 
         let cc_proof = std::fs::read(tmp.path().join("keys/cert_chain_rs4096_proof.bin")).unwrap();
         let ds_proof = std::fs::read(tmp.path().join("keys/device_sig_rs2048_proof.bin")).unwrap();
+
         let body = serde_json::json!({
             "cert_chain_type": "rs4096",
             "cert_chain_proof": STANDARD.encode(&cc_proof),
@@ -182,12 +198,21 @@ mod proof_e2e {
         });
         let resp = reqwest::blocking::Client::new()
             .post(format!("{}/link-verify", super::BASE_URL))
+            .header("ngrok-skip-browser-warning", "true")
             .json(&body)
             .send()
-            .expect("POST /linkverify failed");
-        assert!(resp.status().is_success(), "/linkverify returned {}", resp.status());
-        let resp_body: serde_json::Value = resp.json().expect("/linkverify response is not valid JSON");
-        assert_eq!(resp_body["verified"], true, "/linkverify body: {resp_body}");
+            .expect("POST /link-verify failed");
+        let status = resp.status();
+        let raw = resp
+            .text()
+            .unwrap_or_else(|e| format!("<failed to read body: {e}>"));
+        assert!(status.is_success(), "/link-verify returned {status}: {raw}");
+        let resp_body: serde_json::Value = serde_json::from_str(&raw)
+            .unwrap_or_else(|e| panic!("/link-verify response is not valid JSON ({e}): {raw}"));
+        assert_eq!(
+            resp_body["verified"], true,
+            "/link-verify body: {resp_body}"
+        );
         println!("HTTP /linkverify nullifier: {}", resp_body["nullifier"]);
         println!("All proofs verified successfully");
     }
