@@ -393,6 +393,39 @@ mod proof_e2e {
     }
 
     #[test]
+    fn test_outdated_smt_root() {
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let outdated_path = manifest.join(OUTDATED_G3_SNAPSHOT_PATH);
+        if !outdated_path.exists() {
+            println!("skipping: outdated G3 snapshot not present at {}", outdated_path.display());
+            return;
+        }
+
+        let body: ChallengeResponse = client()
+            .post(format!("{BASE_URL}/challenge"))
+            .send()
+            .expect("POST /challenge")
+            .json()
+            .expect("parse ChallengeResponse JSON");
+
+        let resp = ProofRequest::new(&body.challenge)
+            .app_id(&body.app_id)
+            .smt_snapshot(outdated_path.to_string_lossy())
+            .run();
+        let status = resp.status();
+        let raw = resp.text().unwrap_or_else(|e| format!("<failed to read body: {e}>"));
+        assert_eq!(
+            status,
+            reqwest::StatusCode::CONFLICT,
+            "expected 409 for outdated SMT root, got {status}: {raw}"
+        );
+        assert!(
+            raw.contains("smt_root_mismatch"),
+            "unexpected error body: {raw}"
+        );
+    }
+
+    #[test]
     fn test_expired_challenge() {
         let body: ChallengeResponse = client()
             .post(format!("{BASE_URL}/challenge"))
