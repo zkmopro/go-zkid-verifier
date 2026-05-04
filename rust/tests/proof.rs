@@ -264,9 +264,13 @@ mod proof_e2e {
             .expect("POST /challenge")
             .json()
             .expect("parse ChallengeResponse JSON");
-        let resp = ProofRequest::new(&body.challenge)
+
+        let (cc_proof, ds_proof) = ProofRequest::new(&body.challenge)
             .app_id(&body.app_id)
-            .run();
+            .prove();
+
+        // First submission: success
+        let resp = submit_proofs(&cc_proof, &ds_proof);
         let status = resp.status();
         let raw = resp
             .text()
@@ -274,12 +278,35 @@ mod proof_e2e {
         assert!(status.is_success(), "/link-verify returned {status}: {raw}");
         let resp_body: serde_json::Value = serde_json::from_str(&raw)
             .unwrap_or_else(|e| panic!("/link-verify response is not valid JSON ({e}): {raw}"));
-        assert_eq!(
-            resp_body["verified"], true,
-            "/link-verify body: {resp_body}"
-        );
+        assert_eq!(resp_body["verified"], true, "/link-verify body: {resp_body}");
         println!("HTTP /linkverify nullifier: {}", resp_body["nullifier"]);
-        println!("All proofs verified successfully");
+
+        let body2: ChallengeResponse = client()
+            .post(format!("{BASE_URL}/challenge"))
+            .send()
+            .expect("POST /challenge")
+            .json()
+            .expect("parse ChallengeResponse JSON");
+
+        let (cc_proof2, ds_proof2) = ProofRequest::new(&body2.challenge)
+            .app_id(&body.app_id)
+            .prove();
+
+        // Second submission with the same proof must be rejected (duplicate nullifier).
+        let resp2 = submit_proofs(&cc_proof2, &ds_proof2);
+        let status2 = resp2.status();
+        let raw2 = resp2
+            .text()
+            .unwrap_or_else(|e| format!("<failed to read body: {e}>"));
+        assert_eq!(
+            status2,
+            reqwest::StatusCode::CONFLICT,
+            "expected 409 for untrusted CA, got {status2}: {raw2}"
+        );
+        assert!(
+            raw2.contains("nullifier already registered"),
+            "unexpected error body: {raw2}"
+        );
     }
 
     #[test]
