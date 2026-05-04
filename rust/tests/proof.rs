@@ -35,6 +35,8 @@ mod proof_e2e {
         "../../zkID/wallet-unit-poc/ecdsa-spartan2/tests/testdata/test_ca_rs4096.der";
 
     const REAL_TW_FIDO_SIGN_RESPONSE_PATH: &str = "tests/data/tw_fido_sign_response.json";
+    const REAL_TW_FIDO_SIGN_RESPONSE_WRONG_APP_ID_PATH: &str =
+        "tests/data/tw_fido_sign_response_wrong_app_id.json";
     const REAL_RS4096_SIGN_RESPONSE_PATH: &str = "tests/data/rs4096_sign_response.json";
 
     const ISSUER_CERT_G3: &str = "tests/data/moica-g3.cer";
@@ -388,6 +390,50 @@ mod proof_e2e {
         );
         assert!(
             raw.contains("proof verification failed"),
+            "unexpected error body: {raw}"
+        );
+    }
+
+    #[test]
+    fn test_wrong_app_id() {
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+        // Load a FIDO response that was signed with app_id = 0000000000000000000000000000000.
+        // File takes priority; env var is the CI fallback.
+        let wrong_app_id_path = manifest.join(REAL_TW_FIDO_SIGN_RESPONSE_WRONG_APP_ID_PATH);
+        let response_str = if wrong_app_id_path.exists() {
+            Some(std::fs::read_to_string(&wrong_app_id_path).unwrap())
+        } else {
+            std::env::var("TW_FIDO_SIGN_RESPONSE_WRONG_APP_ID").ok()
+        };
+        let Some(response_str) = response_str else {
+            println!("skipping: TW_FIDO_SIGN_RESPONSE_WRONG_APP_ID not set and file not present");
+            return;
+        };
+        let (certb64, signed_response) = serde_json::from_str::<AnySignResponse>(&response_str)
+            .expect("response JSON must be a MOICA G3 or HiPKI sign response")
+            .into_cert_and_sig();
+
+        let body: ChallengeResponse = client()
+            .post(format!("{BASE_URL}/challenge"))
+            .send()
+            .expect("POST /challenge")
+            .json()
+            .expect("parse ChallengeResponse JSON");
+
+        let resp = ProofRequest::new(&body.challenge)
+            .app_id("0000000000000000000000000000000")
+            .cert_response(certb64, signed_response)
+            .run();
+        let status = resp.status();
+        let raw = resp.text().unwrap_or_else(|e| format!("<failed to read body: {e}>"));
+        assert_eq!(
+            status,
+            reqwest::StatusCode::CONFLICT,
+            "expected 409 for wrong app_id, got {status}: {raw}"
+        );
+        assert!(
+            raw.contains("app_id_mismatch"),
             "unexpected error body: {raw}"
         );
     }

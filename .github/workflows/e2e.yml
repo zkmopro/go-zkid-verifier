@@ -93,4 +93,5 @@ jobs:
               working-directory: go-zkid-verifier/rust
               env:
                   TW_FIDO_SIGN_RESPONSE: ${{ secrets.TW_FIDO_SIGN_RESPONSE }}
+                  TW_FIDO_SIGN_RESPONSE_WRONG_APP_ID: ${{ secrets.TW_FIDO_SIGN_RESPONSE_WRONG_APP_ID }}
               run: cargo test --release --features proof-e2e -- --test-threads=1 --nocapture

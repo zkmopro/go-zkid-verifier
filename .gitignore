@@ -12,5 +12,6 @@ lib/
 
 rs4096_sign_response.json
 tw_fido_sign_response.json
+tw_fido_sign_response_wrong_app_id.json
 g3-tree-snapshot.json.gz
 g2-tree-snapshot.json.gz
