@@ -112,7 +112,7 @@ mod proof_e2e {
         }
     }
 
-    fn generate_proof(challenge: String) {
+    fn generate_proof(challenge: String) -> reqwest::blocking::Response {
         let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
         // Load RS4096 sign response: file → env var → fake testdata.
@@ -213,6 +213,18 @@ mod proof_e2e {
             .json(&body)
             .send()
             .expect("POST /link-verify failed");
+        return resp;
+    }
+
+    #[test]
+    fn test_generate_cert_chain_rs4096_input_e2e() {
+        let body: ChallengeResponse = client()
+            .post(format!("{BASE_URL}/challenge"))
+            .send()
+            .expect("POST /challenge")
+            .json()
+            .expect("parse ChallengeResponse JSON");
+        let resp = generate_proof(body.challenge);
         let status = resp.status();
         let raw = resp
             .text()
@@ -229,13 +241,18 @@ mod proof_e2e {
     }
 
     #[test]
-    fn test_generate_cert_chain_rs4096_input_e2e() {
-        let body: ChallengeResponse = client()
-            .post(format!("{BASE_URL}/challenge"))
-            .send()
-            .expect("POST /challenge")
-            .json()
-            .expect("parse ChallengeResponse JSON");
-        generate_proof(body.challenge);
+    fn test_invalid_challenge() {
+        let resp = generate_proof("1234567890".to_string());
+        let status = resp.status();
+        let raw = resp.text().unwrap_or_else(|e| format!("<failed to read body: {e}>"));
+        assert_eq!(
+            status,
+            reqwest::StatusCode::NOT_FOUND,
+            "expected 404 for invalid challenge, got {status}: {raw}"
+        );
+        assert!(
+            raw.contains("challenge not found or already consumed"),
+            "unexpected error body: {raw}"
+        );
     }
 }

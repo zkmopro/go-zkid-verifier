@@ -92,4 +92,4 @@ jobs:
 
             - name: Run Rust e2e tests
               working-directory: go-zkid-verifier/rust
-              run: cargo test --release --features proof-e2e -- --test-threads=1
+              run: cargo test --release --features proof-e2e -- --test-threads=1 --nocapture
