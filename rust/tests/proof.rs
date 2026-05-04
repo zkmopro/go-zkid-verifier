@@ -171,7 +171,7 @@ mod proof_e2e {
             self
         }
 
-        fn run(self) -> reqwest::blocking::Response {
+        fn prove(self) -> (Vec<u8>, Vec<u8>) {
             let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
             let tmp = tempfile::tempdir().unwrap();
@@ -233,19 +233,27 @@ mod proof_e2e {
 
             let cc_proof = std::fs::read(tmp.path().join("keys/cert_chain_rs4096_proof.bin")).unwrap();
             let ds_proof = std::fs::read(tmp.path().join("keys/device_sig_rs2048_proof.bin")).unwrap();
-
-            let body = serde_json::json!({
-                "cert_chain_type": "rs4096",
-                "cert_chain_proof": STANDARD.encode(&cc_proof),
-                "device_sig_proof": STANDARD.encode(&ds_proof),
-            });
-            reqwest::blocking::Client::new()
-                .post(format!("{}/link-verify", BASE_URL))
-                .header("ngrok-skip-browser-warning", "true")
-                .json(&body)
-                .send()
-                .expect("POST /link-verify failed")
+            (cc_proof, ds_proof)
         }
+
+        fn run(self) -> reqwest::blocking::Response {
+            let (cc_proof, ds_proof) = self.prove();
+            submit_proofs(&cc_proof, &ds_proof)
+        }
+    }
+
+    fn submit_proofs(cc_proof: &[u8], ds_proof: &[u8]) -> reqwest::blocking::Response {
+        let body = serde_json::json!({
+            "cert_chain_type": "rs4096",
+            "cert_chain_proof": STANDARD.encode(cc_proof),
+            "device_sig_proof": STANDARD.encode(ds_proof),
+        });
+        reqwest::blocking::Client::new()
+            .post(format!("{}/link-verify", BASE_URL))
+            .header("ngrok-skip-browser-warning", "true")
+            .json(&body)
+            .send()
+            .expect("POST /link-verify failed")
     }
 
     #[test]
@@ -321,6 +329,38 @@ mod proof_e2e {
         );
         assert!(
             raw.contains("challenge not found or already consumed"),
+            "unexpected error body: {raw}"
+        );
+    }
+
+    #[test]
+    fn test_tampered_certificate() {
+        let body: ChallengeResponse = client()
+            .post(format!("{BASE_URL}/challenge"))
+            .send()
+            .expect("POST /challenge")
+            .json()
+            .expect("parse ChallengeResponse JSON");
+
+        // Generate a valid proof, then flip a byte in the cert_chain_proof binary before
+        // submission. The ZK verifier encodes the certificate data inside the proof, so
+        // tampering with its bytes is equivalent to submitting a proof built from a
+        // modified certificate — RSA verification inside the verifier will fail.
+        let (mut cc_proof, ds_proof) = ProofRequest::new(&body.challenge)
+            .app_id(&body.app_id)
+            .prove();
+
+        cc_proof[0] ^= 0xFF;
+
+        let resp = submit_proofs(&cc_proof, &ds_proof);
+        let status = resp.status();
+        let raw = resp.text().unwrap_or_else(|e| format!("<failed to read body: {e}>"));
+        assert!(
+            !status.is_success(),
+            "expected rejection for tampered proof, got {status}: {raw}"
+        );
+        assert!(
+            raw.contains("proof verification failed"),
             "unexpected error body: {raw}"
         );
     }
