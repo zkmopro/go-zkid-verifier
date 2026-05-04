@@ -91,4 +91,6 @@ jobs:
 
             - name: Run Rust e2e tests
               working-directory: go-zkid-verifier/rust
+              env:
+                  TW_FIDO_SIGN_RESPONSE: ${{ secrets.TW_FIDO_SIGN_RESPONSE }}
               run: cargo test --release --features proof-e2e -- --test-threads=1 --nocapture

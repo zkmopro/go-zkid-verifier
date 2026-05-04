@@ -52,6 +52,7 @@ mod proof_e2e {
     #[derive(serde::Deserialize)]
     struct ChallengeResponse {
         challenge: String,
+        expires_at: chrono::DateTime<chrono::Utc>,
     }
 
     fn client() -> reqwest::blocking::Client {
@@ -269,6 +270,36 @@ mod proof_e2e {
         );
         assert!(
             raw.contains("challenge not found or already consumed"),
+            "unexpected error body: {raw}"
+        );
+    }
+
+    #[test]
+    fn test_expired_challenge() {
+        let body: ChallengeResponse = client()
+            .post(format!("{BASE_URL}/challenge"))
+            .send()
+            .expect("POST /challenge")
+            .json()
+            .expect("parse ChallengeResponse JSON");
+
+        let wait = (body.expires_at - chrono::Utc::now())
+            .to_std()
+            .unwrap_or(Duration::ZERO)
+            + Duration::from_secs(1);
+        println!("waiting {wait:?} for challenge to expire…");
+        std::thread::sleep(wait);
+
+        let resp = generate_proof(body.challenge);
+        let status = resp.status();
+        let raw = resp.text().unwrap_or_else(|e| format!("<failed to read body: {e}>"));
+        assert_eq!(
+            status,
+            reqwest::StatusCode::BAD_REQUEST,
+            "expected 400 for challenge expired, got {status}: {raw}"
+        );
+        assert!(
+            raw.contains("challenge expired"),
             "unexpected error body: {raw}"
         );
     }
