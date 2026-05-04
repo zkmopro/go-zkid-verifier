@@ -10,7 +10,7 @@ Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plu
 4. The `app_id` reconstructed from device_sig public values matches the configured `APP_ID` env value (constant-time compare). The prover signs `APP_ID`; the resulting RSA signature derives the cardholder-bound `nullifier` inside the same circuit.
 5. The per-session `challenge` bound into the device-sig proof matches the value `/challenge` issued. The binding is a Semaphore-style dummy square (`challengeSquared <== challenge * challenge`) — see [PR#60 follow-on](https://github.com/zkmopro/zkID/pull/60). Stops replay of pre-generated proofs across sessions.
 
-`APP_ID` is one 31-byte value per relying party, set via env at server startup as a plain 31-character UTF-8 string (e.g. `APP_ID=myapp-relying-party-id-here`). `challenge` is per-session — a fresh 254-bit decimal field element issued by `/challenge`, bound into the device-sig proof by the prover, and extracted server-side from the proof's public inputs at `/link-verify`. The server looks up the challenge from the proof (normalising hex to decimal if needed) and consumes it on success.
+`APP_ID` is one 31-character lowercase hex string per relying party, set via env at server startup (e.g. `APP_ID=$(LC_ALL=C tr -dc '0-9a-f' </dev/urandom | head -c 31)`). `challenge` is per-session — a fresh 254-bit decimal field element issued by `/challenge`, bound into the device-sig proof by the prover, and extracted server-side from the proof's public inputs at `/link-verify`. The server looks up the challenge from the proof (normalising hex to decimal if needed) and consumes it on success.
 
 ## Quickstart
 
@@ -205,7 +205,7 @@ All via environment variables.
 | `DB_PATH` | `./zkid.db` | SQLite database path |
 | `KEYS_DIR` | `./keys` | Verifying-key directory (auto-downloaded) |
 | `CORS_ORIGIN` | `*` | `Access-Control-Allow-Origin` |
-| `APP_ID` | _(required)_ | Plain 31-character UTF-8 string identifying the relying party. The prover signs these bytes; the verifier hard-fails on mismatch. Example: `APP_ID=myapp-relying-party-id-here`. |
+| `APP_ID` | _(required)_ | Exactly 31-character lowercase hex string identifying the relying party. The prover signs these bytes; the verifier hard-fails on mismatch. Generate with: `APP_ID=$(LC_ALL=C tr -dc '0-9a-f' </dev/urandom \| head -c 31)` |
 | `SMT_ROOT_ENFORCE` | `strict` | `strict` = hard-fail on mismatch; `disabled` = skip (dev only) |
 | `SMT_ROOT_RPC_URL` | `https://sepolia-rollup.arbitrum.io/rpc` | Arbitrum Sepolia JSON-RPC |
 | `SMT_ROOT_CONTRACT` | `0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA` | `SMTRootStorage` address |
