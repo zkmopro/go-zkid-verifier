@@ -312,6 +312,44 @@ mod proof_e2e {
     }
 
     #[test]
+    fn test_reuse_challenge() {
+        let body: ChallengeResponse = client()
+            .post(format!("{BASE_URL}/challenge"))
+            .send()
+            .expect("POST /challenge")
+            .json()
+            .expect("parse ChallengeResponse JSON");
+
+        let (cc_proof, ds_proof) = ProofRequest::new(&body.challenge)
+            .app_id(&body.app_id)
+            .prove();
+
+        // First submission.
+        let resp = submit_proofs(&cc_proof, &ds_proof);
+        let status = resp.status();
+        let raw = resp
+            .text()
+            .unwrap_or_else(|e| format!("<failed to read body: {e}>"));
+
+        // Second submission with the identical proof bytes: the challenge was already
+        // consumed on the first call, so the server must reject it.
+        let resp2 = submit_proofs(&cc_proof, &ds_proof);
+        let status2 = resp2.status();
+        let raw2 = resp2
+            .text()
+            .unwrap_or_else(|e| format!("<failed to read body: {e}>"));
+        assert_eq!(
+            status,
+            reqwest::StatusCode::CONFLICT,
+            "expected 409 for nullifier already registered, got {status}: {raw}"
+        );
+        assert!(
+            raw.contains("nullifier already registered"),
+            "unexpected error body: {raw}"
+        );
+    }
+
+    #[test]
     fn test_untrusted_ca() {
         let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
