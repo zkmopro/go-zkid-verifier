@@ -298,9 +298,14 @@ mod proof_e2e {
             .run();
         let status = resp.status();
         let raw = resp.text().unwrap_or_else(|e| format!("<failed to read body: {e}>"));
+        assert_eq!(
+            status,
+            reqwest::StatusCode::CONFLICT,
+            "expected 409 for untrusted CA, got {status}: {raw}"
+        );
         assert!(
-            !status.is_success(),
-            "expected rejection for untrusted CA, got {status}: {raw}"
+            raw.contains("issuer_modulus_mismatch"),
+            "unexpected error body: {raw}"
         );
     }
 
