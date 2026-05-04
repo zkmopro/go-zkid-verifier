@@ -436,4 +436,48 @@ mod proof_e2e {
             "challenge expired",
         );
     }
+
+    #[test]
+    fn test_malformed_json_body() {
+        assert_rejected(
+            client()
+                .post(format!("{BASE_URL}/link-verify"))
+                .header("Content-Type", "application/json")
+                .body("{not valid json}")
+                .send()
+                .expect("POST /link-verify"),
+            reqwest::StatusCode::BAD_REQUEST,
+            "invalid request body",
+        );
+    }
+
+    #[test]
+    fn test_missing_proof_fields() {
+        assert_rejected(
+            client()
+                .post(format!("{BASE_URL}/link-verify"))
+                .json(&serde_json::json!({ "cert_chain_type": "rs4096" }))
+                .send()
+                .expect("POST /link-verify"),
+            reqwest::StatusCode::BAD_REQUEST,
+            "cert_chain_proof and device_sig_proof are required",
+        );
+    }
+
+    #[test]
+    fn test_invalid_cert_chain_type() {
+        assert_rejected(
+            client()
+                .post(format!("{BASE_URL}/link-verify"))
+                .json(&serde_json::json!({
+                    "cert_chain_type": "rs1024",
+                    "cert_chain_proof": STANDARD.encode(b"dummy"),
+                    "device_sig_proof": STANDARD.encode(b"dummy"),
+                }))
+                .send()
+                .expect("POST /link-verify"),
+            reqwest::StatusCode::BAD_REQUEST,
+            "invalid cert_chain_type",
+        );
+    }
 }
