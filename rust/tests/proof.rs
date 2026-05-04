@@ -283,6 +283,21 @@ mod proof_e2e {
         assert_eq!(resp_body["verified"], true, "/link-verify body: {resp_body}");
         println!("HTTP /linkverify nullifier: {}", resp_body["nullifier"]);
 
+        let resp3 = submit_proofs(&cc_proof, &ds_proof);
+        let status3 = resp3.status();
+        let raw3 = resp3
+            .text()
+            .unwrap_or_else(|e| format!("<failed to read body: {e}>"));
+        assert_eq!(
+            status3,
+            reqwest::StatusCode::GONE,
+            "expected 410 for used challenge, got {status3}: {raw3}"
+        );
+        assert!(
+            raw3.contains("challenge already consumed"),
+            "unexpected error body: {raw3}"
+        );
+
         let body2: ChallengeResponse = client()
             .post(format!("{BASE_URL}/challenge"))
             .send()
@@ -303,7 +318,7 @@ mod proof_e2e {
         assert_eq!(
             status2,
             reqwest::StatusCode::CONFLICT,
-            "expected 409 for untrusted CA, got {status2}: {raw2}"
+            "expected 409 for used nullifier, got {status2}: {raw2}"
         );
         assert!(
             raw2.contains("nullifier already registered"),
@@ -325,19 +340,16 @@ mod proof_e2e {
             .prove();
 
         // First submission.
+        let _ = submit_proofs(&cc_proof, &ds_proof);
+
+        // Second submission with the identical proof bytes: the challenge was already
+        // consumed on the first call, so the server must reject it.
         let resp = submit_proofs(&cc_proof, &ds_proof);
         let status = resp.status();
         let raw = resp
             .text()
             .unwrap_or_else(|e| format!("<failed to read body: {e}>"));
 
-        // Second submission with the identical proof bytes: the challenge was already
-        // consumed on the first call, so the server must reject it.
-        let resp2 = submit_proofs(&cc_proof, &ds_proof);
-        let status2 = resp2.status();
-        let raw2 = resp2
-            .text()
-            .unwrap_or_else(|e| format!("<failed to read body: {e}>"));
         assert_eq!(
             status,
             reqwest::StatusCode::CONFLICT,
@@ -422,9 +434,10 @@ mod proof_e2e {
         let resp = submit_proofs(&cc_proof, &ds_proof);
         let status = resp.status();
         let raw = resp.text().unwrap_or_else(|e| format!("<failed to read body: {e}>"));
-        assert!(
-            !status.is_success(),
-            "expected rejection for tampered proof, got {status}: {raw}"
+        assert_eq!(
+            status,
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+            "expected 500 for tampered proof, got {status}: {raw}"
         );
         assert!(
             raw.contains("proof verification failed"),
