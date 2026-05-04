@@ -9,41 +9,53 @@
 ///
 /// Run:
 ///   cargo test --release --features proof-e2e -- --nocapture
-
-const BASE_URL: &str = "http://localhost:8080";
-
-const OUTDATED_G2_SNAPSHOT_PATH: &str = "tests/data/outdated-g3-tree-snapshot.json.gz";
-const OUTDATED_G3_SNAPSHOT_PATH: &str = "tests/data/outdated-g3-tree-snapshot.json.gz";
-const LATEST_G2_SNAPSHOT_URL: &str = "https://github.com/moven0831/moica-revocation-smt/releases/download/snapshot-latest/g2-tree-snapshot.json.gz";
-const LATEST_G3_SNAPSHOT_URL: &str = "https://github.com/moven0831/moica-revocation-smt/releases/download/snapshot-latest/g3-tree-snapshot.json.gz";
-const CERT_CHAIN_RS4096_PROVING_KEY_URL: &str =
-    "https://github.com/zkmopro/zkID/releases/download/latest/cert_chain_rs4096_proving.key.gz";
-const CERT_CHAIN_RS4096_VERIFYING_KEY_URL: &str =
-    "https://github.com/zkmopro/zkID/releases/download/latest/cert_chain_rs4096_verifying.key.gz";
-const DEVICE_SIG_RS2048_PROVING_KEY_URL: &str =
-    "https://github.com/zkmopro/zkID/releases/download/latest/device_sig_rs2048_proving.key.gz";
-const DEVICE_SIG_RS2048_VERIFYING_KEY_URL: &str =
-    "https://github.com/zkmopro/zkID/releases/download/latest/device_sig_rs2048_verifying.key.gz";
-
-const FAKE_CERT_RESPONSE_PATH: &str =
-    "../../zkID/wallet-unit-poc/ecdsa-spartan2/tests/testdata/rs4096_response_sign.json";
-const FAKE_ISSUER_CERT_PATH: &str =
-    "../../zkID/wallet-unit-poc/ecdsa-spartan2/tests/testdata/test_ca_rs4096.der";
-
-const REAL_TW_FIDO_SIGN_RESPONSE_PATH: &str = "tests/data/tw_fido_sign_response.json";
-const REAL_RS4096_SIGN_RESPONSE_PATH: &str = "tests/data/rs4096_sign_response.json";
-
 #[cfg(feature = "proof-e2e")]
 mod proof_e2e {
+
+    const BASE_URL: &str = "http://localhost:8080";
+
+    const OUTDATED_G2_SNAPSHOT_PATH: &str = "tests/data/outdated-g3-tree-snapshot.json.gz";
+    const OUTDATED_G3_SNAPSHOT_PATH: &str = "tests/data/outdated-g3-tree-snapshot.json.gz";
+    const LATEST_G2_SNAPSHOT_URL: &str = "https://github.com/moven0831/moica-revocation-smt/releases/download/snapshot-latest/g2-tree-snapshot.json.gz";
+    const LATEST_G3_SNAPSHOT_URL: &str = "https://github.com/moven0831/moica-revocation-smt/releases/download/snapshot-latest/g3-tree-snapshot.json.gz";
+    const CERT_CHAIN_RS4096_PROVING_KEY_URL: &str =
+        "https://github.com/zkmopro/zkID/releases/download/latest/cert_chain_rs4096_proving.key.gz";
+    const CERT_CHAIN_RS4096_VERIFYING_KEY_URL: &str =
+    "https://github.com/zkmopro/zkID/releases/download/latest/cert_chain_rs4096_verifying.key.gz";
+    const DEVICE_SIG_RS2048_PROVING_KEY_URL: &str =
+        "https://github.com/zkmopro/zkID/releases/download/latest/device_sig_rs2048_proving.key.gz";
+    const DEVICE_SIG_RS2048_VERIFYING_KEY_URL: &str =
+    "https://github.com/zkmopro/zkID/releases/download/latest/device_sig_rs2048_verifying.key.gz";
+
+    const FAKE_CERT_RESPONSE_PATH: &str =
+        "../../zkID/wallet-unit-poc/ecdsa-spartan2/tests/testdata/rs4096_response_sign.json";
+    const FAKE_ISSUER_CERT_PATH: &str =
+        "../../zkID/wallet-unit-poc/ecdsa-spartan2/tests/testdata/test_ca_rs4096.der";
+
+    const REAL_TW_FIDO_SIGN_RESPONSE_PATH: &str = "tests/data/tw_fido_sign_response.json";
+    const REAL_RS4096_SIGN_RESPONSE_PATH: &str = "tests/data/rs4096_sign_response.json";
 
     use std::path::PathBuf;
 
     use base64::{engine::general_purpose::STANDARD, Engine as _};
-    use ecdsa_spartan2::{DEFAULT_CHALLENGE, DEFAULT_TBS};
+    use ecdsa_spartan2::DEFAULT_TBS;
     use openac_mobile_app::{
         generate_cert_chain_rs4096_input, link_verify, prove_cert_chain_rs4096,
         prove_device_sig_rs2048, verify_cert_chain_rs4096, verify_device_sig_rs2048,
     };
+    use std::time::Duration;
+
+    #[derive(serde::Deserialize)]
+    struct ChallengeResponse {
+        challenge: String,
+    }
+
+    fn client() -> reqwest::blocking::Client {
+        reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()
+            .expect("build HTTP client")
+    }
 
     fn download_and_gunzip(url: &str, dest: &std::path::Path) {
         let bytes = reqwest::blocking::get(url)
@@ -100,21 +112,21 @@ mod proof_e2e {
         }
     }
 
-    fn generate_proof() {
+    fn generate_proof(challenge: String) {
         let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
         // Load RS4096 sign response: file → env var → fake testdata.
-        let real_rs4096_path = manifest.join(super::REAL_RS4096_SIGN_RESPONSE_PATH);
+        let real_rs4096_path = manifest.join(REAL_RS4096_SIGN_RESPONSE_PATH);
         let response_str = if real_rs4096_path.exists() {
             std::fs::read_to_string(&real_rs4096_path).unwrap()
         } else if let Ok(content) = std::env::var("RS4096_SIGN_RESPONSE") {
             content
         } else {
-            std::fs::read_to_string(manifest.join(super::FAKE_CERT_RESPONSE_PATH)).unwrap()
+            std::fs::read_to_string(manifest.join(FAKE_CERT_RESPONSE_PATH)).unwrap()
         };
 
         // Load TW FIDO sign response: file → env var.
-        let real_tw_fido_path = manifest.join(super::REAL_TW_FIDO_SIGN_RESPONSE_PATH);
+        let real_tw_fido_path = manifest.join(REAL_TW_FIDO_SIGN_RESPONSE_PATH);
         let _tw_fido_response_str = if real_tw_fido_path.exists() {
             Some(std::fs::read_to_string(&real_tw_fido_path).unwrap())
         } else {
@@ -138,7 +150,6 @@ mod proof_e2e {
             .exists()
             .then(|| snapshot_path.to_string());
 
-        let challenge = DEFAULT_CHALLENGE.to_string();
         let result = generate_cert_chain_rs4096_input(
             certb64,
             signed_response,
@@ -156,19 +167,19 @@ mod proof_e2e {
         let keys_dir = tmp.path().join("keys");
         for (url, filename) in [
             (
-                super::CERT_CHAIN_RS4096_PROVING_KEY_URL,
+                CERT_CHAIN_RS4096_PROVING_KEY_URL,
                 "cert_chain_rs4096_proving.key",
             ),
             (
-                super::CERT_CHAIN_RS4096_VERIFYING_KEY_URL,
+                CERT_CHAIN_RS4096_VERIFYING_KEY_URL,
                 "cert_chain_rs4096_verifying.key",
             ),
             (
-                super::DEVICE_SIG_RS2048_PROVING_KEY_URL,
+                DEVICE_SIG_RS2048_PROVING_KEY_URL,
                 "device_sig_rs2048_proving.key",
             ),
             (
-                super::DEVICE_SIG_RS2048_VERIFYING_KEY_URL,
+                DEVICE_SIG_RS2048_VERIFYING_KEY_URL,
                 "device_sig_rs2048_verifying.key",
             ),
         ] {
@@ -197,7 +208,7 @@ mod proof_e2e {
             "device_sig_proof": STANDARD.encode(&ds_proof),
         });
         let resp = reqwest::blocking::Client::new()
-            .post(format!("{}/link-verify", super::BASE_URL))
+            .post(format!("{}/link-verify", BASE_URL))
             .header("ngrok-skip-browser-warning", "true")
             .json(&body)
             .send()
@@ -219,6 +230,12 @@ mod proof_e2e {
 
     #[test]
     fn test_generate_cert_chain_rs4096_input_e2e() {
-        generate_proof();
+        let body: ChallengeResponse = client()
+            .post(format!("{BASE_URL}/challenge"))
+            .send()
+            .expect("POST /challenge")
+            .json()
+            .expect("parse ChallengeResponse JSON");
+        generate_proof(body.challenge);
     }
 }
