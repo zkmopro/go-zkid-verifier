@@ -1,0 +1,97 @@
+name: E2E
+
+on:
+    push:
+    pull_request:
+        branches: [main]
+
+jobs:
+    e2e:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout go-zkid-verifier
+              uses: actions/checkout@v4
+              with:
+                  path: go-zkid-verifier
+
+            - name: Clone zkID (pinned for reproducible builds)
+              run: |
+                  git clone https://github.com/zkmopro/zkID.git zkID
+                  cd zkID && git checkout main
+
+            - name: Stage circom artifacts from zkID release
+              working-directory: zkID/wallet-unit-poc
+              run: |
+                  mkdir -p circom/build/cpp
+                  cd circom/build/cpp
+                  for f in device_sig_rs2048.cpp device_sig_rs2048.dat cert_chain_rs4096.cpp cert_chain_rs4096.dat; do
+                    curl -fL --retry 3 "https://github.com/zkmopro/zkID/releases/download/latest/${f}.gz" -o "${f}.gz"
+                    gunzip -f "${f}.gz"
+                  done
+                  cd ../../..
+                  for c in cert_chain_rs4096 device_sig_rs2048 cert_chain_rs2048; do
+                    mkdir -p "circom/build/${c}/${c}_js"
+                    curl -fL --retry 3 "https://github.com/zkmopro/zkID/releases/download/latest/${c}.r1cs.gz" \
+                      -o "circom/build/${c}/${c}_js/${c}.r1cs.gz"
+                    gunzip -f "circom/build/${c}/${c}_js/${c}.r1cs.gz"
+                  done
+
+            - name: Install Rust
+              uses: dtolnay/rust-toolchain@stable
+
+            - name: Install C++ toolchain (Linux)
+              if: runner.os == 'Linux'
+              run: sudo apt-get install -y g++ libstdc++-12-dev nasm libgmp-dev
+
+            - name: Cache Rust dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cargo/registry
+                      ~/.cargo/git
+                      go-zkid-verifier/rust/target
+                  key: ${{ runner.os }}-cargo-${{ hashFiles('go-zkid-verifier/rust/Cargo.lock') }}
+                  restore-keys: ${{ runner.os }}-cargo-
+
+            - name: Install Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version-file: go-zkid-verifier/go.mod
+                  cache: true
+
+            - name: Build Rust library and Go binaries
+              working-directory: go-zkid-verifier
+              run: make build
+
+            - name: Download verifying keys
+              working-directory: go-zkid-verifier
+              run: make download-keys
+
+            - name: Start server
+              working-directory: go-zkid-verifier
+              env:
+                  PORT: "8080"
+                  DB_PATH: /tmp/zkid-e2e.db
+                  APP_ID: e775f2805fb993e05a208dbff15d1c1
+
+              run: ./zkid-server &
+
+            - name: Wait for server to be ready
+              run: |
+                  for i in $(seq 1 20); do
+                    if curl -sf -X POST http://localhost:8080/challenge -o /dev/null; then
+                      echo "Server ready after ${i}s"
+                      exit 0
+                    fi
+                    sleep 1
+                  done
+                  echo "Server did not become ready in 20s" >&2
+                  exit 1
+
+            - name: Run Rust e2e tests
+              working-directory: go-zkid-verifier/rust
+              env:
+                  TW_FIDO_SIGN_RESPONSE: ${{ secrets.TW_FIDO_SIGN_RESPONSE }}
+                  TW_FIDO_SIGN_RESPONSE_WRONG_APP_ID: ${{ secrets.TW_FIDO_SIGN_RESPONSE_WRONG_APP_ID }}
+              run: cargo test --release --features proof-e2e -- --test-threads=1 --nocapture

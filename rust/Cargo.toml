@@ -7,7 +7,22 @@ edition = "2021"
 name = "zk_verifier"
 crate-type = ["staticlib", "cdylib"]
 
+[features]
+# Enable with: cargo test --features proof-e2e
+# Requires `yarn compile:cert_chain_rs4096` and `yarn compile:device_sig_rs2048` to have been run.
+proof-e2e = ["openac-mobile-app"]
+
 [dependencies]
 ecdsa-spartan2 = { path = "../../zkID/wallet-unit-poc/ecdsa-spartan2" }
 ff = "0.13"
 subtle = "2"
+openac-mobile-app = { path = "../../zkID/wallet-unit-poc/mobile", optional = true, default-features = false, features = ["mobile"] }
+
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+flate2 = "1"
+chrono = { version = "0.4", features = ["serde"] }
+tempfile = "3"
