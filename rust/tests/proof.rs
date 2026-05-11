@@ -325,6 +325,23 @@ mod proof_e2e {
         );
     }
 
+    // Precondition: test_generate_cert_chain_rs4096_input_e2e ran and recorded
+    // the nullifier. The server is then stopped and restarted with the same DB
+    // file (see the "Restart server" step in e2e.yml). A fresh proof from the
+    // same certificate must still be rejected — confirming that duplicate
+    // rejection relies on persisted DB state, not in-memory state.
+    #[test]
+    fn test_nullifier_persisted_after_restart() {
+        let body = fresh_challenge();
+        assert_rejected(
+            ProofRequest::new(&body.challenge)
+                .app_id(&body.app_id)
+                .run(),
+            reqwest::StatusCode::CONFLICT,
+            "nullifier already registered",
+        );
+    }
+
     #[test]
     fn test_untrusted_ca() {
         let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
