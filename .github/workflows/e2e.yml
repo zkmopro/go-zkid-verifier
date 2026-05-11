@@ -94,4 +94,33 @@ jobs:
               env:
                   TW_FIDO_SIGN_RESPONSE: ${{ secrets.TW_FIDO_SIGN_RESPONSE }}
                   TW_FIDO_SIGN_RESPONSE_WRONG_APP_ID: ${{ secrets.TW_FIDO_SIGN_RESPONSE_WRONG_APP_ID }}
-              run: cargo test --release --features proof-e2e -- --test-threads=1 --nocapture
+              run: cargo test --release --features proof-e2e -- --test-threads=1 --nocapture --skip test_nullifier_persisted_after_restart
+
+            - name: Restart server (same DB — simulate service restart)
+              working-directory: go-zkid-verifier
+              env:
+                  PORT: "8080"
+                  DB_PATH: /tmp/zkid-e2e.db
+                  APP_ID: e775f2805fb993e05a208dbff15d1c1
+              run: |
+                  pkill -f zkid-server || true
+                  sleep 1
+                  ./zkid-server &
+
+            - name: Wait for server to be ready after restart
+              run: |
+                  for i in $(seq 1 20); do
+                    if curl -sf -X POST http://localhost:8080/challenge -o /dev/null; then
+                      echo "Server ready after ${i}s"
+                      exit 0
+                    fi
+                    sleep 1
+                  done
+                  echo "Server did not become ready in 20s" >&2
+                  exit 1
+
+            - name: Verify nullifier rejected after server restart
+              working-directory: go-zkid-verifier/rust
+              env:
+                  TW_FIDO_SIGN_RESPONSE: ${{ secrets.TW_FIDO_SIGN_RESPONSE }}
+              run: cargo test --release --features proof-e2e test_nullifier_persisted_after_restart -- --test-threads=1 --nocapture

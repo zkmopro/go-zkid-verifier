@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -288,5 +289,41 @@ func TestForeignKeyEnforcement(t *testing.T) {
 	err := s.VerifyAndRecord(context.Background(), "fk-test", "no-such-challenge", nil, "link_rs2048")
 	if !errors.Is(err, ErrChallengeNotFound) {
 		t.Fatalf("expected ErrChallengeNotFound, got: %v", err)
+	}
+}
+
+// TestNullifierPersistedAfterReopen verifies that a recorded nullifier survives
+// a store close + reopen (simulates a server restart with the same DB file).
+func TestNullifierPersistedAfterReopen(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "persist.db")
+
+	// First "session": record a nullifier then close the store.
+	s1, err := NewSQLiteStore(dbPath, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("open s1: %v", err)
+	}
+	c1, err := s1.CreateChallenge(context.Background())
+	if err != nil {
+		t.Fatalf("create challenge s1: %v", err)
+	}
+	if err := s1.VerifyAndRecord(context.Background(), "persist-nullifier", c1.Challenge, nil, "link_rs2048"); err != nil {
+		t.Fatalf("first verify: %v", err)
+	}
+	s1.Close() // simulate service shutdown
+
+	// Second "session": reopen the same file (simulate restart).
+	s2, err := NewSQLiteStore(dbPath, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("open s2: %v", err)
+	}
+	defer s2.Close()
+
+	c2, err := s2.CreateChallenge(context.Background())
+	if err != nil {
+		t.Fatalf("create challenge s2: %v", err)
+	}
+	err = s2.VerifyAndRecord(context.Background(), "persist-nullifier", c2.Challenge, nil, "link_rs2048")
+	if !errors.Is(err, ErrDuplicateNullifier) {
+		t.Fatalf("expected ErrDuplicateNullifier after reopen, got: %v", err)
 	}
 }
