@@ -3,7 +3,7 @@
 /// Prerequisites:
 ///   cd ../../zkID/wallet-unit-poc/circom
 ///   yarn compile:cert_chain_rs4096   # writes circom/build/cert_chain_rs4096/…/cert_chain_rs4096.r1cs
-///   yarn compile:device_sig_rs2048   # writes circom/build/device_sig_rs2048/…/device_sig_rs2048.r1cs
+///   yarn compile:user_sig_rs2048   # writes circom/build/user_sig_rs2048/…/user_sig_rs2048.r1cs
 ///
 /// Run:
 ///   cargo test --release --features proof-e2e -- --test-threads=1 --nocapture
@@ -22,10 +22,10 @@ mod proof_e2e {
         "https://github.com/zkmopro/zkID/releases/download/latest/cert_chain_rs4096_proving.key.gz";
     const CERT_CHAIN_RS4096_VERIFYING_KEY_URL: &str =
         "https://github.com/zkmopro/zkID/releases/download/latest/cert_chain_rs4096_verifying.key.gz";
-    const DEVICE_SIG_RS2048_PROVING_KEY_URL: &str =
-        "https://github.com/zkmopro/zkID/releases/download/latest/device_sig_rs2048_proving.key.gz";
-    const DEVICE_SIG_RS2048_VERIFYING_KEY_URL: &str =
-        "https://github.com/zkmopro/zkID/releases/download/latest/device_sig_rs2048_verifying.key.gz";
+    const USER_SIG_RS2048_PROVING_KEY_URL: &str =
+        "https://github.com/zkmopro/zkID/releases/download/latest/user_sig_rs2048_proving.key.gz";
+    const USER_SIG_RS2048_VERIFYING_KEY_URL: &str =
+        "https://github.com/zkmopro/zkID/releases/download/latest/user_sig_rs2048_verifying.key.gz";
 
     // Test fixture paths.
     const FAKE_CERT_RESPONSE_PATH: &str =
@@ -43,7 +43,7 @@ mod proof_e2e {
     use ecdsa_spartan2::DEFAULT_TBS;
     use openac_mobile_app::{
         generate_cert_chain_rs4096_input, link_verify, prove_cert_chain_rs4096,
-        prove_device_sig_rs2048, verify_cert_chain_rs4096, verify_device_sig_rs2048,
+        prove_user_sig_rs2048, verify_cert_chain_rs4096, verify_user_sig_rs2048,
     };
     use std::time::Duration;
 
@@ -252,8 +252,8 @@ mod proof_e2e {
             for (url, filename) in [
                 (CERT_CHAIN_RS4096_PROVING_KEY_URL, "cert_chain_rs4096_proving.key"),
                 (CERT_CHAIN_RS4096_VERIFYING_KEY_URL, "cert_chain_rs4096_verifying.key"),
-                (DEVICE_SIG_RS2048_PROVING_KEY_URL, "device_sig_rs2048_proving.key"),
-                (DEVICE_SIG_RS2048_VERIFYING_KEY_URL, "device_sig_rs2048_verifying.key"),
+                (USER_SIG_RS2048_PROVING_KEY_URL, "user_sig_rs2048_proving.key"),
+                (USER_SIG_RS2048_VERIFYING_KEY_URL, "user_sig_rs2048_verifying.key"),
             ] {
                 download_and_gunzip(url, &keys_dir.join(filename));
             }
@@ -263,16 +263,16 @@ mod proof_e2e {
             let cc_ok = verify_cert_chain_rs4096(documents_path.clone()).unwrap();
             assert!(cc_ok, "cert_chain_rs4096 verification failed");
 
-            let ds_result = prove_device_sig_rs2048(documents_path.clone()).unwrap();
+            let ds_result = prove_user_sig_rs2048(documents_path.clone()).unwrap();
             println!("device_sig proved in {}ms", ds_result.prove_ms);
-            let ds_ok = verify_device_sig_rs2048(documents_path.clone()).unwrap();
-            assert!(ds_ok, "device_sig_rs2048 verification failed");
+            let ds_ok = verify_user_sig_rs2048(documents_path.clone()).unwrap();
+            assert!(ds_ok, "user_sig_rs2048 verification failed");
 
             let linked = link_verify(documents_path.clone()).unwrap();
             assert!(linked, "link verification failed");
 
             let cc_proof = std::fs::read(tmp.path().join("keys/cert_chain_rs4096_proof.bin")).unwrap();
-            let ds_proof = std::fs::read(tmp.path().join("keys/device_sig_rs2048_proof.bin")).unwrap();
+            let ds_proof = std::fs::read(tmp.path().join("keys/user_sig_rs2048_proof.bin")).unwrap();
             (cc_proof, ds_proof)
         }
 

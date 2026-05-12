@@ -7,7 +7,7 @@ KEYS_DIR="$(cd "$(dirname "$0")/.." && pwd)/keys"
 KEYS=(
   cert_chain_rs2048_verifying.key
   cert_chain_rs4096_verifying.key
-  device_sig_rs2048_verifying.key
+  user_sig_rs2048_verifying.key
 )
 
 mkdir -p "$KEYS_DIR"

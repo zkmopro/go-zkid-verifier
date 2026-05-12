@@ -2,8 +2,8 @@ package verifier
 
 /*
 #cgo LDFLAGS: -lzk_verifier -lm
-#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../lib/aarch64-apple-darwin -Wl,-rpath,${SRCDIR}/../lib/aarch64-apple-darwin -lwitnesscalc_device_sig_rs2048 -lfr -lgmp -lc++
-#cgo linux LDFLAGS: -L${SRCDIR}/../lib/x86_64-unknown-linux-gnu -Wl,-rpath,${SRCDIR}/../lib/x86_64-unknown-linux-gnu -lwitnesscalc_device_sig_rs2048 -lfr -lgmp -lstdc++
+#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../lib/aarch64-apple-darwin -Wl,-rpath,${SRCDIR}/../lib/aarch64-apple-darwin -lwitnesscalc_user_sig_rs2048 -lfr -lgmp -lc++
+#cgo linux LDFLAGS: -L${SRCDIR}/../lib/x86_64-unknown-linux-gnu -Wl,-rpath,${SRCDIR}/../lib/x86_64-unknown-linux-gnu -lwitnesscalc_user_sig_rs2048 -lfr -lgmp -lstdc++
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -30,8 +30,8 @@ type PublicSignals struct {
 type CertChainType int
 
 const (
-	CertChainRS2048 CertChainType = 0 // cert_chain_rs2048 + device_sig_rs2048
-	CertChainRS4096 CertChainType = 1 // cert_chain_rs4096 + device_sig_rs2048
+	CertChainRS2048 CertChainType = 0 // cert_chain_rs2048 + user_sig_rs2048
+	CertChainRS4096 CertChainType = 1 // cert_chain_rs4096 + user_sig_rs2048
 )
 
 func lastError() error {
@@ -55,7 +55,7 @@ func lastSignals() *PublicSignals {
 //
 // Reads from {baseDir}/keys/:
 //   - cert_chain proof (rs2048 or rs4096 depending on certChainType)
-//   - device_sig_rs2048 proof
+//   - user_sig_rs2048 proof
 //   - corresponding verifying keys
 //
 // Returns (verified, signals, error). signals is non-nil whenever the FFI call

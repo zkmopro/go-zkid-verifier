@@ -66,7 +66,7 @@ pub extern "C" fn zk_last_error() -> *const std::os::raw::c_char {
 ///
 /// Reads from {base_dir}/keys/:
 ///   - cert_chain proof (rs2048 or rs4096 depending on cert_chain_type)
-///   - device_sig_rs2048 proof
+///   - user_sig_rs2048 proof
 ///   - corresponding verifying keys
 ///
 /// cert_chain_type: 0 = rs2048, 1 = rs4096

@@ -25,9 +25,9 @@ func main() {
 		}
 	}
 
-	typeName := "cert_chain_rs2048 + device_sig_rs2048"
+	typeName := "cert_chain_rs2048 + user_sig_rs2048"
 	if certChainType == verifier.CertChainRS4096 {
-		typeName = "cert_chain_rs4096 + device_sig_rs2048"
+		typeName = "cert_chain_rs4096 + user_sig_rs2048"
 	}
 
 	fmt.Printf("=== zkID Link Verifier ===\n")

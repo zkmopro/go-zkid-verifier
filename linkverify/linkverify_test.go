@@ -40,7 +40,7 @@ func TestVerifyRS2048(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read cert_chain proof: %v", err)
 	}
-	dsProof, err := os.ReadFile(filepath.Join(artifactsDir, "device_sig_rs2048_proof.bin"))
+	dsProof, err := os.ReadFile(filepath.Join(artifactsDir, "user_sig_rs2048_proof.bin"))
 	if err != nil {
 		t.Fatalf("read device_sig proof: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestVerifyRS4096(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read cert_chain proof: %v", err)
 	}
-	dsProof, err := os.ReadFile(filepath.Join(artifactsDir, "device_sig_rs2048_proof.bin"))
+	dsProof, err := os.ReadFile(filepath.Join(artifactsDir, "user_sig_rs2048_proof.bin"))
 	if err != nil {
 		t.Fatalf("read device_sig proof: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestVerifier_SmtRootEnforcement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read cert_chain proof: %v", err)
 	}
-	dsProof, err := os.ReadFile(filepath.Join(artifactsDir, "device_sig_rs2048_proof.bin"))
+	dsProof, err := os.ReadFile(filepath.Join(artifactsDir, "user_sig_rs2048_proof.bin"))
 	if err != nil {
 		t.Fatalf("read device_sig proof: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestVerifier_NilProviderPassthrough(t *testing.T) {
 
 	artifactsDir := filepath.Join("..", "tests", "artifacts", "cc2048_ds2048")
 	ccProof, _ := os.ReadFile(filepath.Join(artifactsDir, "cert_chain_rs2048_proof.bin"))
-	dsProof, _ := os.ReadFile(filepath.Join(artifactsDir, "device_sig_rs2048_proof.bin"))
+	dsProof, _ := os.ReadFile(filepath.Join(artifactsDir, "user_sig_rs2048_proof.bin"))
 
 	v := &Verifier{KeysDir: absKeysDir, Logger: smtroot.DefaultLogger{}}
 	result, err := v.Verify(Request{
@@ -262,7 +262,7 @@ func TestServiceChallenge_RealProof(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read cert_chain proof: %v", err)
 	}
-	dsProof, err := os.ReadFile(filepath.Join(artifactsDir, "device_sig_rs2048_proof.bin"))
+	dsProof, err := os.ReadFile(filepath.Join(artifactsDir, "user_sig_rs2048_proof.bin"))
 	if err != nil {
 		t.Fatalf("read device_sig proof: %v", err)
 	}

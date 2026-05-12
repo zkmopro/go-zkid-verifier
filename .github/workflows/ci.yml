@@ -39,14 +39,14 @@ jobs:
       - name: Clone zkID (pinned for reproducible builds)
         run: |
           git clone https://github.com/zkmopro/zkID.git zkID
-          cd zkID && git checkout 397b9b4756f6324a86f5ef42ee4ad5af55954c79
+          cd zkID && git checkout main
 
       - name: Stage circom artifacts from zkID release
         working-directory: zkID/wallet-unit-poc
         run: |
           mkdir -p circom/build/cpp
           cd circom/build/cpp
-          for f in device_sig_rs2048.cpp device_sig_rs2048.dat; do
+          for f in userSigRS2048.cpp userSigRS2048.dat; do
             curl -fL --retry 3 "https://github.com/zkmopro/zkID/releases/download/latest/${f}.gz" -o "${f}.gz"
             gunzip -f "${f}.gz"
           done
@@ -97,7 +97,7 @@ jobs:
           mkdir -p "$TMPDIR/keys"
           cp tests/artifacts/cc2048_ds2048/*.bin "$TMPDIR/keys/"
           ln -s "$(pwd)/keys/cert_chain_rs2048_verifying.key" "$TMPDIR/keys/"
-          ln -s "$(pwd)/keys/device_sig_rs2048_verifying.key" "$TMPDIR/keys/"
+          ln -s "$(pwd)/keys/user_sig_rs2048_verifying.key" "$TMPDIR/keys/"
           ZK_BASE_DIR="$TMPDIR" go test ./verifier/ -v -run TestLinkVerifyRS2048
           rm -rf "$TMPDIR"
 
@@ -108,6 +108,6 @@ jobs:
           mkdir -p "$TMPDIR/keys"
           cp tests/artifacts/cc4096_ds2048/*.bin "$TMPDIR/keys/"
           ln -s "$(pwd)/keys/cert_chain_rs4096_verifying.key" "$TMPDIR/keys/"
-          ln -s "$(pwd)/keys/device_sig_rs2048_verifying.key" "$TMPDIR/keys/"
+          ln -s "$(pwd)/keys/user_sig_rs2048_verifying.key" "$TMPDIR/keys/"
           ZK_BASE_DIR="$TMPDIR" go test ./verifier/ -v -run TestLinkVerifyRS4096
           rm -rf "$TMPDIR"

@@ -15,8 +15,8 @@ type PublicSignals = verifier.PublicSignals
 type ProofType string
 
 const (
-	ProofTypeRS2048 ProofType = "rs2048" // cert_chain_rs2048 + device_sig_rs2048
-	ProofTypeRS4096 ProofType = "rs4096" // cert_chain_rs4096 + device_sig_rs2048
+	ProofTypeRS2048 ProofType = "rs2048" // cert_chain_rs2048 + user_sig_rs2048
+	ProofTypeRS4096 ProofType = "rs4096" // cert_chain_rs4096 + user_sig_rs2048
 )
 
 // ParseProofType validates cert_chain_type. An empty string defaults to RS2048.
@@ -51,8 +51,8 @@ type Request struct {
 
 // proofFileNames returns the expected file names for the proof type.
 func proofFileNames(pt ProofType) (ccProof, dsProof, ccVK, dsVK string) {
-	dsProof = "device_sig_rs2048_proof.bin"
-	dsVK = "device_sig_rs2048_verifying.key"
+	dsProof = "user_sig_rs2048_proof.bin"
+	dsVK = "user_sig_rs2048_verifying.key"
 	if pt == ProofTypeRS4096 {
 		ccProof = "cert_chain_rs4096_proof.bin"
 		ccVK = "cert_chain_rs4096_verifying.key"

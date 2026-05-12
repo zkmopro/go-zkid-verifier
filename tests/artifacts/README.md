@@ -20,24 +20,24 @@ RUST_LOG=info cargo run --release -- generate-split-input
 # 4. Setup + prove cert-chain RS2048 and device-sig RS2048.
 cargo run --release --features cert_chain_rs2048 -- cert-chain setup --input ../circom/inputs/cert_chain_rs2048/input.json
 cargo run --release --features cert_chain_rs2048 -- cert-chain prove --input ../circom/inputs/cert_chain_rs2048/input.json
-cargo run --release -- device-sig setup --input ../circom/inputs/device_sig_rs2048/input.json
-cargo run --release -- device-sig prove --input ../circom/inputs/device_sig_rs2048/input.json
+cargo run --release -- device-sig setup --input ../circom/inputs/user_sig_rs2048/input.json
+cargo run --release -- device-sig prove --input ../circom/inputs/user_sig_rs2048/input.json
 
 # 5. Repeat for RS4096.
 RUST_LOG=info cargo run --release -- generate-split-input --cert-chain-4096
 cargo run --release --features cert_chain_rs4096 -- cert-chain setup --cert-chain-4096 --input ../circom/inputs/cert_chain_rs4096/input.json
 cargo run --release --features cert_chain_rs4096 -- cert-chain prove --cert-chain-4096 --input ../circom/inputs/cert_chain_rs4096/input.json
-cargo run --release --features device_sig_rs2048 -- device-sig setup --input ../circom/inputs/device_sig_rs2048_chain_rs4096/input.json
-cargo run --release --features device_sig_rs2048 -- device-sig prove --input ../circom/inputs/device_sig_rs2048_chain_rs4096/input.json
+cargo run --release --features user_sig_rs2048 -- device-sig setup --input ../circom/inputs/user_sig_rs2048_chain_rs4096/input.json
+cargo run --release --features user_sig_rs2048 -- device-sig prove --input ../circom/inputs/user_sig_rs2048_chain_rs4096/input.json
 
 # 6. Copy the resulting proofs into this directory.
 cp keys/cert_chain_rs2048_proof.bin /path/to/go-zkid-verifier/tests/artifacts/cc2048_ds2048/
-cp keys/device_sig_rs2048_proof.bin /path/to/go-zkid-verifier/tests/artifacts/cc2048_ds2048/
+cp keys/user_sig_rs2048_proof.bin /path/to/go-zkid-verifier/tests/artifacts/cc2048_ds2048/
 cp keys/cert_chain_rs4096_proof.bin /path/to/go-zkid-verifier/tests/artifacts/cc4096_ds2048/
 # The RS4096 chain pairs with a DIFFERENT device-sig fixture (chain_rs4096 input), so re-run device-sig
-# prove against that input before copying. The committed cc4096_ds2048/device_sig_rs2048_proof.bin
-# was produced from device_sig_rs2048_chain_rs4096/input.json.
-cp keys/device_sig_rs2048_proof.bin /path/to/go-zkid-verifier/tests/artifacts/cc4096_ds2048/
+# prove against that input before copying. The committed cc4096_ds2048/user_sig_rs2048_proof.bin
+# was produced from user_sig_rs2048_chain_rs4096/input.json.
+cp keys/user_sig_rs2048_proof.bin /path/to/go-zkid-verifier/tests/artifacts/cc4096_ds2048/
 
 # 7. Refresh local verifying keys so the FFI matches the proofs.
 rm -rf ../../../go-zkid-verifier/keys/

@@ -25,12 +25,12 @@ jobs:
               run: |
                   mkdir -p circom/build/cpp
                   cd circom/build/cpp
-                  for f in device_sig_rs2048.cpp device_sig_rs2048.dat cert_chain_rs4096.cpp cert_chain_rs4096.dat; do
+                  for f in userSigRS2048.cpp userSigRS2048.dat certChainRS4096.app certChainRS4096.dat; do
                     curl -fL --retry 3 "https://github.com/zkmopro/zkID/releases/download/latest/${f}.gz" -o "${f}.gz"
                     gunzip -f "${f}.gz"
                   done
                   cd ../../..
-                  for c in cert_chain_rs4096 device_sig_rs2048 cert_chain_rs2048; do
+                  for c in certChainRS4096 userSigRS2048 certChainRS2048; do
                     mkdir -p "circom/build/${c}/${c}_js"
                     curl -fL --retry 3 "https://github.com/zkmopro/zkID/releases/download/latest/${c}.r1cs.gz" \
                       -o "circom/build/${c}/${c}_js/${c}.r1cs.gz"
