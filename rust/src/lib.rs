@@ -1,5 +1,5 @@
 use ecdsa_spartan2::{
-    verify_circuit, CertChainRsa2048, CertChainRsa4096, DeviceSigRsa2048, PathConfig, RsaKeySize,
+    verify_circuit, CertChainRsa2048, CertChainRsa4096, UserSigRsa2048, PathConfig, RsaKeySize,
 };
 use ff::PrimeField;
 use std::cell::RefCell;
@@ -109,8 +109,8 @@ pub extern "C" fn zk_link_verify(
 
         // Verify device-sig proof
         let ds_public_values = verify_circuit(
-            path_config.artifact_path(DeviceSigRsa2048::PROOF),
-            path_config.key_path(DeviceSigRsa2048::VERIFYING_KEY),
+            path_config.artifact_path(UserSigRsa2048::PROOF),
+            path_config.key_path(UserSigRsa2048::VERIFYING_KEY),
         );
 
         if cc_public_values.is_empty() || ds_public_values.is_empty() {
