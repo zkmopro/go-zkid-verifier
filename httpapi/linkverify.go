@@ -20,8 +20,8 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 			return
 		}
 
-		if len(req.CertChainProof) == 0 || len(req.DeviceSigProof) == 0 {
-			jsonError(w, "cert_chain_proof and device_sig_proof are required", http.StatusBadRequest)
+		if len(req.CertChainProof) == 0 || len(req.UserSigProof) == 0 {
+			jsonError(w, "cert_chain_proof and user_sig_proof are required", http.StatusBadRequest)
 			return
 		}
 
@@ -33,7 +33,7 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 
 		result, err := service.VerifyAndRecord(r.Context(), linkverify.Request{
 			CertChainProof: req.CertChainProof,
-			DeviceSigProof: req.DeviceSigProof,
+			UserSigProof: req.UserSigProof,
 			ProofType:      pt,
 		})
 		if err != nil {

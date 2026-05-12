@@ -41,7 +41,7 @@ fn set_last_signals(cc_hexes: Vec<String>, ds_hexes: Vec<String>) {
             .join(",")
     };
     let json = format!(
-        r#"{{"cert_chain":[{}],"device_sig":[{}]}}"#,
+        r#"{{"cert_chain":[{}],"user_sig":[{}]}}"#,
         to_json_array(cc_hexes),
         to_json_array(ds_hexes)
     );
@@ -115,7 +115,7 @@ pub extern "C" fn zk_link_verify(
 
         if cc_public_values.is_empty() || ds_public_values.is_empty() {
             panic!(
-                "public values empty: cert_chain={}, device_sig={}",
+                "public values empty: cert_chain={}, user_sig={}",
                 cc_public_values.len(),
                 ds_public_values.len()
             );

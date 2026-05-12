@@ -122,7 +122,7 @@ mod proof_e2e {
         let body = serde_json::json!({
             "cert_chain_type": "rs4096",
             "cert_chain_proof": STANDARD.encode(cc_proof),
-            "device_sig_proof": STANDARD.encode(ds_proof),
+            "user_sig_proof": STANDARD.encode(ds_proof),
         });
         reqwest::blocking::Client::new()
             .post(format!("{BASE_URL}/link-verify"))
@@ -246,7 +246,7 @@ mod proof_e2e {
             )
             .unwrap();
             assert!(result.contains("cert_chain"));
-            assert!(result.contains("device_sig"));
+            assert!(result.contains("user_sig"));
 
             let keys_dir = tmp.path().join("keys");
             for (url, filename) in [
@@ -264,7 +264,7 @@ mod proof_e2e {
             assert!(cc_ok, "cert_chain_rs4096 verification failed");
 
             let ds_result = prove_user_sig_rs2048(documents_path.clone()).unwrap();
-            println!("device_sig proved in {}ms", ds_result.prove_ms);
+            println!("user_sig proved in {}ms", ds_result.prove_ms);
             let ds_ok = verify_user_sig_rs2048(documents_path.clone()).unwrap();
             assert!(ds_ok, "user_sig_rs2048 verification failed");
 
@@ -478,7 +478,7 @@ mod proof_e2e {
                 .send()
                 .expect("POST /link-verify"),
             reqwest::StatusCode::BAD_REQUEST,
-            "cert_chain_proof and device_sig_proof are required",
+            "cert_chain_proof and user_sig_proof are required",
         );
     }
 
@@ -490,7 +490,7 @@ mod proof_e2e {
                 .json(&serde_json::json!({
                     "cert_chain_type": "rs1024",
                     "cert_chain_proof": STANDARD.encode(b"dummy"),
-                    "device_sig_proof": STANDARD.encode(b"dummy"),
+                    "user_sig_proof": STANDARD.encode(b"dummy"),
                 }))
                 .send()
                 .expect("POST /link-verify"),

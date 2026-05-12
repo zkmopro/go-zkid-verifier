@@ -44,7 +44,7 @@ func main() {
 		fmt.Println("Link verification PASSED: pk_commit_A == pk_commit_B")
 		if signals != nil {
 			fmt.Printf("Cert-chain public values: %v\n", signals.CertChain)
-			fmt.Printf("Device-sig public values: %v\n", signals.DeviceSig)
+			fmt.Printf("User-sig public values: %v\n", signals.UserSig)
 		}
 	} else {
 		fmt.Println("Link verification FAILED: pk_commit mismatch")

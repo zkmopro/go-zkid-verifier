@@ -23,7 +23,7 @@ import (
 // serialized as 0x-prefixed little-endian hex strings.
 type PublicSignals struct {
 	CertChain []string `json:"cert_chain"`
-	DeviceSig []string `json:"device_sig"`
+	UserSig []string `json:"user_sig"`
 }
 
 // CertChainType selects the certificate chain RSA key size variant.

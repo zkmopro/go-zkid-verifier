@@ -66,7 +66,7 @@ func TestLinkVerifyRS2048(t *testing.T) {
 		t.Fatal("expected non-nil public signals")
 	}
 	t.Logf("cert_chain signals: %v", signals.CertChain)
-	t.Logf("device_sig signals: %v", signals.DeviceSig)
+	t.Logf("user_sig signals: %v", signals.UserSig)
 }
 
 func TestLinkVerifyRS4096(t *testing.T) {
@@ -96,5 +96,5 @@ func TestLinkVerifyRS4096(t *testing.T) {
 		t.Fatal("expected non-nil public signals")
 	}
 	t.Logf("cert_chain signals: %v", signals.CertChain)
-	t.Logf("device_sig signals: %v", signals.DeviceSig)
+	t.Logf("user_sig signals: %v", signals.UserSig)
 }

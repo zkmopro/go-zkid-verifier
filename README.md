@@ -2,15 +2,15 @@
 
 A Go server that issues challenges and verifies zero-knowledge proofs of Taiwan CDC card identity, over REST and gRPC. Proofs come from the [zkID](https://github.com/zkmopro/zkID) circuits on top of [Spartan2](https://github.com/therealyingtong/Spartan2.git) with Hyrax commitments.
 
-Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plus one device-signature proof (RSA-2048) and enforces five things server-side:
+Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plus one user-signature proof (RSA-2048) and enforces five things server-side:
 
 1. The FFI accepts both proofs and their `pk_commit` linkage holds.
 2. The `smt_root` public input matches the current revocation-list root for the issuer ([moica-revocation-smt](https://github.com/moven0831/moica-revocation-smt)).
 3. The `issuer_rsa_modulus` public input matches the RSA modulus of the published MOICA-G2 (RS2048) or MOICA-G3 (RS4096) certificate — i.e. the proof was actually signed by MOICA, not an impostor.
-4. The `app_id` reconstructed from device_sig public values matches the configured `APP_ID` env value (constant-time compare). The prover signs `APP_ID`; the resulting RSA signature derives the cardholder-bound `nullifier` inside the same circuit.
-5. The per-session `challenge` bound into the device-sig proof matches the value `/challenge` issued. The binding is a Semaphore-style dummy square (`challengeSquared <== challenge * challenge`) — see [PR#60 follow-on](https://github.com/zkmopro/zkID/pull/60). Stops replay of pre-generated proofs across sessions.
+4. The `app_id` reconstructed from user_sig public values matches the configured `APP_ID` env value (constant-time compare). The prover signs `APP_ID`; the resulting RSA signature derives the cardholder-bound `nullifier` inside the same circuit.
+5. The per-session `challenge` bound into the user-sig proof matches the value `/challenge` issued. The binding is a Semaphore-style dummy square (`challengeSquared <== challenge * challenge`) — see [PR#60 follow-on](https://github.com/zkmopro/zkID/pull/60). Stops replay of pre-generated proofs across sessions.
 
-`APP_ID` is one 31-character lowercase hex string per relying party, set via env at server startup (e.g. `APP_ID=$(LC_ALL=C tr -dc '0-9a-f' </dev/urandom | head -c 31)`). `challenge` is per-session — a fresh 254-bit decimal field element issued by `/challenge`, bound into the device-sig proof by the prover, and extracted server-side from the proof's public inputs at `/link-verify`. The server looks up the challenge from the proof (normalising hex to decimal if needed) and consumes it on success.
+`APP_ID` is one 31-character lowercase hex string per relying party, set via env at server startup (e.g. `APP_ID=$(LC_ALL=C tr -dc '0-9a-f' </dev/urandom | head -c 31)`). `challenge` is per-session — a fresh 254-bit decimal field element issued by `/challenge`, bound into the user-sig proof by the prover, and extracted server-side from the proof's public inputs at `/link-verify`. The server looks up the challenge from the proof (normalising hex to decimal if needed) and consumes it on success.
 
 ## Quickstart
 
@@ -33,10 +33,10 @@ Test a round-trip:
 # Issue a challenge
 curl -s -X POST http://localhost:8080/challenge | jq .
 
-# Submit proofs (device-signs the challenge, then produces both ZK proofs)
+# Submit proofs (user-signs the challenge, then produces both ZK proofs)
 curl -s -X POST http://localhost:8080/link-verify \
   -H "Content-Type: application/json" \
-  -d '{"cert_chain_type":"rs2048","cert_chain_proof":"<base64>","device_sig_proof":"<base64>"}' | jq .
+  -d '{"cert_chain_type":"rs2048","cert_chain_proof":"<base64>","user_sig_proof":"<base64>"}' | jq .
 
 # Inspect trust-anchor caches
 curl -s http://localhost:8080/smt-root/status    | jq .
@@ -57,7 +57,7 @@ curl -s http://localhost:8080/issuer-cert/status | jq .
 |---|---|---|
 | `POST` | `/challenge` | Issue a fresh `challenge`. Returns `{challenge, app_id, expires_at}`, TTL 5 min. |
 | `GET`  | `/challenge/{challenge}` | Fetch a challenge by value. |
-| `POST` | `/link-verify` | Verify a cert-chain + device-sig proof pair. Body limit 2 MB. |
+| `POST` | `/link-verify` | Verify a cert-chain + user-sig proof pair. Body limit 2 MB. |
 | `GET`  | `/smt-root/status` | Trusted revocation-root cache snapshot. |
 | `GET`  | `/issuer-cert/status` | Trusted MOICA issuer-cert cache snapshot. |
 | `POST` | `/debug/db/clean` | **Dev only.** Wipes `challenges` + `verifications`. Requires `DEBUG_TOKEN` env var and `Authorization: Bearer <token>` header. Route is unregistered (404) when `DEBUG_TOKEN` is unset. |
@@ -74,7 +74,7 @@ No request body — call as a bare `POST`. Success body (200):
 }
 ```
 
-`challenge` is a fresh 254-bit decimal field element (32 random bytes, top 2 bits cleared, big-endian), with a 5-minute TTL. The prover folds it into the device-sig proof; the server later extracts it from the proof's public inputs to bind the proof to this session. `app_id` echoes the server's configured `APP_ID` env so the prover knows which bytes to sign.
+`challenge` is a fresh 254-bit decimal field element (32 random bytes, top 2 bits cleared, big-endian), with a 5-minute TTL. The prover folds it into the user-sig proof; the server later extracts it from the proof's public inputs to bind the proof to this session. `app_id` echoes the server's configured `APP_ID` env so the prover knows which bytes to sign.
 
 ### `GET /challenge/{challenge}`
 
@@ -91,13 +91,13 @@ Re-fetches a still-live challenge by value. Response shape is identical to `POST
 
 ### `POST /link-verify`
 
-Request — no `challenge` field; the challenge is extracted server-side from the device_sig proof's public inputs:
+Request — no `challenge` field; the challenge is extracted server-side from the user_sig proof's public inputs:
 
 ```json
 {
   "cert_chain_type": "rs2048",
   "cert_chain_proof": "<base64>",
-  "device_sig_proof": "<base64>"
+  "user_sig_proof": "<base64>"
 }
 ```
 
@@ -111,7 +111,7 @@ Success body (200):
   "nullifier": "<nullifier hex>",
   "id_verified": true,
   "persisted": true,
-  "public_signals": { "cert_chain": ["..."], "device_sig": ["..."] },
+  "public_signals": { "cert_chain": ["..."], "user_sig": ["..."] },
   "parsed_inputs": {
     "pk_commit": "...",
     "nullifier": "...",
@@ -135,7 +135,7 @@ The `smt_root`, `issuer_modulus`, and `app_id` blocks are each present whenever 
 |---|---|---|
 | `200` | `verified=true` — proof accepted, record persisted, challenge consumed. |  |
 | `200` | `verified=false, reason="proof_invalid"` — FFI rejected the proof. | Record **not** persisted, challenge **not** consumed. |
-| `400` | Request body malformed or missing `cert_chain_proof` / `device_sig_proof` / valid `cert_chain_type`. |  |
+| `400` | Request body malformed or missing `cert_chain_proof` / `user_sig_proof` / valid `cert_chain_type`. |  |
 | `400` | Challenge expired. | Challenge exists but passed its 5-minute TTL. |
 | `404` | Challenge not found. | The challenge extracted from the proof's public inputs doesn't match any issued challenge. |
 | `409` | `reason="smt_root_mismatch"` | Prover's `smt_root` disagrees with the trusted root — stale client. |
@@ -280,7 +280,7 @@ v := &linkverify.Verifier{
 service := linkverify.NewService(v, sqliteStore)
 
 // Both transports route through the same call. Challenge and nullifier are
-// both extracted server-side from the device_sig proof's public inputs.
+// both extracted server-side from the user_sig proof's public inputs.
 res, err := service.VerifyAndRecord(ctx, linkverify.Request{...})
 ```
 

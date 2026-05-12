@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestParseDeviceSig(t *testing.T) {
+func TestParseUserSig(t *testing.T) {
 	const pkCommit = "0xdeadbeef"
 	const nullifier = "0xfeedface"
 	const challenge = "1234567890"
@@ -19,9 +19,9 @@ func TestParseDeviceSig(t *testing.T) {
 		t.Fatalf("PackAppIDLE: %v", err)
 	}
 
-	ds, err := ParseDeviceSig([]string{pkCommit, nullifier, packed, challenge})
+	ds, err := ParseUserSig([]string{pkCommit, nullifier, packed, challenge})
 	if err != nil {
-		t.Fatalf("ParseDeviceSig: %v", err)
+		t.Fatalf("ParseUserSig: %v", err)
 	}
 	if ds.PkCommit != pkCommit {
 		t.Errorf("PkCommit: got %s, want %s", ds.PkCommit, pkCommit)
@@ -37,11 +37,11 @@ func TestParseDeviceSig(t *testing.T) {
 	}
 }
 
-func TestParseDeviceSigStrictLength(t *testing.T) {
-	if _, err := ParseDeviceSig(make([]string, 3)); err == nil {
+func TestParseUserSigStrictLength(t *testing.T) {
+	if _, err := ParseUserSig(make([]string, 3)); err == nil {
 		t.Error("expected error for 3 signals (need 4)")
 	}
-	if _, err := ParseDeviceSig(make([]string, 5)); err == nil {
+	if _, err := ParseUserSig(make([]string, 5)); err == nil {
 		t.Error("expected error for 5 signals (need 4)")
 	}
 }

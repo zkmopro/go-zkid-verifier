@@ -73,7 +73,7 @@ func validReq() LinkVerifyRequest {
 	return LinkVerifyRequest{
 		CertChainType:  "rs2048",
 		CertChainProof: []byte("x"),
-		DeviceSigProof: []byte("x"),
+		UserSigProof: []byte("x"),
 	}
 }
 

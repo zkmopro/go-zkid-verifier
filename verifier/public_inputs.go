@@ -46,25 +46,25 @@ func ParseCertChainRS4096(signals []string) (*CertChainRS4096PublicInputs, error
 	}, nil
 }
 
-// device_sig layout: [pk_commit, nullifier, app_id_packed, challenge].
+// user_sig layout: [pk_commit, nullifier, app_id_packed, challenge].
 // `app_id_packed` is the 31 leading bytes of `tbs` packed little-endian into one
 // field element (matches the circuit's `tbs[0..31]` recovery). `challenge` is
 // the verifier-issued per-session field element bound by a Semaphore-style
 // dummy square.
-type DeviceSigPublicInputs struct {
+type UserSigPublicInputs struct {
 	PkCommit    string
 	Nullifier   string
 	AppIDPacked string
 	Challenge   string
 }
 
-const ExpectedDeviceSigSignals = 4
+const ExpectedUserSigSignals = 4
 
-func ParseDeviceSig(signals []string) (*DeviceSigPublicInputs, error) {
-	if len(signals) != ExpectedDeviceSigSignals {
-		return nil, fmt.Errorf("device_sig requires exactly %d public inputs, got %d", ExpectedDeviceSigSignals, len(signals))
+func ParseUserSig(signals []string) (*UserSigPublicInputs, error) {
+	if len(signals) != ExpectedUserSigSignals {
+		return nil, fmt.Errorf("user_sig requires exactly %d public inputs, got %d", ExpectedUserSigSignals, len(signals))
 	}
-	return &DeviceSigPublicInputs{
+	return &UserSigPublicInputs{
 		PkCommit:    signals[0],
 		Nullifier:   signals[1],
 		AppIDPacked: signals[2],
@@ -141,18 +141,18 @@ type ParsedInputs struct {
 	SmtRoot          string   `json:"smt_root"`
 }
 
-func ParsePublicInputsRS2048(certChain, deviceSig []string) (*ParsedInputs, error) {
+func ParsePublicInputsRS2048(certChain, userSig []string) (*ParsedInputs, error) {
 	cc, err := ParseCertChainRS2048(certChain)
 	if err != nil {
 		return nil, fmt.Errorf("cert_chain: %w", err)
 	}
-	ds, err := ParseDeviceSig(deviceSig)
+	ds, err := ParseUserSig(userSig)
 	if err != nil {
-		return nil, fmt.Errorf("device_sig: %w", err)
+		return nil, fmt.Errorf("user_sig: %w", err)
 	}
 	appID, err := UnpackAppID(ds.AppIDPacked)
 	if err != nil {
-		return nil, fmt.Errorf("device_sig: %w", err)
+		return nil, fmt.Errorf("user_sig: %w", err)
 	}
 	return &ParsedInputs{
 		PkCommit:         cc.PkCommit,
@@ -165,18 +165,18 @@ func ParsePublicInputsRS2048(certChain, deviceSig []string) (*ParsedInputs, erro
 	}, nil
 }
 
-func ParsePublicInputsRS4096(certChain, deviceSig []string) (*ParsedInputs, error) {
+func ParsePublicInputsRS4096(certChain, userSig []string) (*ParsedInputs, error) {
 	cc, err := ParseCertChainRS4096(certChain)
 	if err != nil {
 		return nil, fmt.Errorf("cert_chain: %w", err)
 	}
-	ds, err := ParseDeviceSig(deviceSig)
+	ds, err := ParseUserSig(userSig)
 	if err != nil {
-		return nil, fmt.Errorf("device_sig: %w", err)
+		return nil, fmt.Errorf("user_sig: %w", err)
 	}
 	appID, err := UnpackAppID(ds.AppIDPacked)
 	if err != nil {
-		return nil, fmt.Errorf("device_sig: %w", err)
+		return nil, fmt.Errorf("user_sig: %w", err)
 	}
 	return &ParsedInputs{
 		PkCommit:         cc.PkCommit,
@@ -195,8 +195,8 @@ func ParsePublicInputs(signals *PublicSignals, t CertChainType) (*ParsedInputs, 
 	}
 	switch t {
 	case CertChainRS4096:
-		return ParsePublicInputsRS4096(signals.CertChain, signals.DeviceSig)
+		return ParsePublicInputsRS4096(signals.CertChain, signals.UserSig)
 	default:
-		return ParsePublicInputsRS2048(signals.CertChain, signals.DeviceSig)
+		return ParsePublicInputsRS2048(signals.CertChain, signals.UserSig)
 	}
 }
