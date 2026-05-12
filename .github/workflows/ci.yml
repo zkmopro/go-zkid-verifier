@@ -46,7 +46,7 @@ jobs:
         run: |
           mkdir -p circom/build/cpp
           cd circom/build/cpp
-          for f in userSigRS2048.cpp userSigRS2048.dat; do
+          for f in certChainRS2048.cpp certChainRS2048.dat userSigRS2048.cpp userSigRS2048.dat; do
             curl -fL --retry 3 "https://github.com/zkmopro/zkID/releases/download/latest/${f}.gz" -o "${f}.gz"
             gunzip -f "${f}.gz"
           done
