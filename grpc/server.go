@@ -64,8 +64,8 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 	if req.Challenge == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "challenge is required")
 	}
-	if len(req.CertChainProof) == 0 || len(req.DeviceSigProof) == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "cert_chain_proof and device_sig_proof are required")
+	if len(req.CertChainProof) == 0 || len(req.UserSigProof) == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "cert_chain_proof and user_sig_proof are required")
 	}
 
 	pt, err := linkverify.ParseProofType(req.CertChainType)
@@ -75,7 +75,7 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 
 	result, err := s.service.VerifyAndRecord(ctx, linkverify.Request{
 		CertChainProof: req.CertChainProof,
-		DeviceSigProof: req.DeviceSigProof,
+		UserSigProof: req.UserSigProof,
 		ProofType:      pt,
 	})
 	if err != nil {

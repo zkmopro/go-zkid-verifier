@@ -24,7 +24,6 @@ func resolveKeysDir(t *testing.T) string {
 	return abs
 }
 
-
 func TestVerifyRS2048(t *testing.T) {
 	keysDir := os.Getenv("KEYS_DIR")
 	if keysDir == "" {
@@ -40,15 +39,15 @@ func TestVerifyRS2048(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read cert_chain proof: %v", err)
 	}
-	dsProof, err := os.ReadFile(filepath.Join(artifactsDir, "device_sig_rs2048_proof.bin"))
+	usProof, err := os.ReadFile(filepath.Join(artifactsDir, "user_sig_rs2048_proof.bin"))
 	if err != nil {
-		t.Fatalf("read device_sig proof: %v", err)
+		t.Fatalf("read user_sig proof: %v", err)
 	}
 
 	absKeysDir, _ := filepath.Abs(keysDir)
 	valid, signals, err := Verify(Request{
 		CertChainProof: ccProof,
-		DeviceSigProof: dsProof,
+		UserSigProof:   usProof,
 		ProofType:      ProofTypeRS2048,
 	}, absKeysDir)
 	if err != nil {
@@ -63,17 +62,17 @@ func TestVerifyRS2048(t *testing.T) {
 	if len(signals.CertChain) < 2 {
 		t.Fatalf("expected at least 2 cert_chain signals, got %d", len(signals.CertChain))
 	}
-	if len(signals.DeviceSig) < 1 {
-		t.Fatalf("expected at least 1 device_sig signal, got %d", len(signals.DeviceSig))
+	if len(signals.UserSig) < 1 {
+		t.Fatalf("expected at least 1 user_sig signal, got %d", len(signals.UserSig))
 	}
 	// pk_commit must match across both circuits
-	if signals.CertChain[0] != signals.DeviceSig[0] {
-		t.Fatalf("pk_commit mismatch: cert_chain[0]=%s device_sig[0]=%s", signals.CertChain[0], signals.DeviceSig[0])
+	if signals.CertChain[0] != signals.UserSig[0] {
+		t.Fatalf("pk_commit mismatch: cert_chain[0]=%s user_sig[0]=%s", signals.CertChain[0], signals.UserSig[0])
 	}
 
-	ds, err := verifier.ParseDeviceSig(signals.DeviceSig)
+	ds, err := verifier.ParseUserSig(signals.UserSig)
 	if err != nil {
-		t.Fatalf("ParseDeviceSig: %v", err)
+		t.Fatalf("ParseUserSig: %v", err)
 	}
 	t.Logf("pk_commit:     %s", ds.PkCommit)
 	t.Logf("nullifier:     %s", ds.Nullifier)
@@ -95,15 +94,15 @@ func TestVerifyRS4096(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read cert_chain proof: %v", err)
 	}
-	dsProof, err := os.ReadFile(filepath.Join(artifactsDir, "device_sig_rs2048_proof.bin"))
+	usProof, err := os.ReadFile(filepath.Join(artifactsDir, "user_sig_rs2048_proof.bin"))
 	if err != nil {
-		t.Fatalf("read device_sig proof: %v", err)
+		t.Fatalf("read user_sig proof: %v", err)
 	}
 
 	absKeysDir, _ := filepath.Abs(keysDir)
 	valid, signals, err := Verify(Request{
 		CertChainProof: ccProof,
-		DeviceSigProof: dsProof,
+		UserSigProof:   usProof,
 		ProofType:      ProofTypeRS4096,
 	}, absKeysDir)
 	if err != nil {
@@ -118,11 +117,11 @@ func TestVerifyRS4096(t *testing.T) {
 	if len(signals.CertChain) < 2 {
 		t.Fatalf("expected at least 2 cert_chain signals, got %d", len(signals.CertChain))
 	}
-	if len(signals.DeviceSig) < 1 {
-		t.Fatalf("expected at least 1 device_sig signal, got %d", len(signals.DeviceSig))
+	if len(signals.UserSig) < 1 {
+		t.Fatalf("expected at least 1 user_sig signal, got %d", len(signals.UserSig))
 	}
-	if signals.CertChain[0] != signals.DeviceSig[0] {
-		t.Fatalf("pk_commit mismatch: cert_chain[0]=%s device_sig[0]=%s", signals.CertChain[0], signals.DeviceSig[0])
+	if signals.CertChain[0] != signals.UserSig[0] {
+		t.Fatalf("pk_commit mismatch: cert_chain[0]=%s user_sig[0]=%s", signals.CertChain[0], signals.UserSig[0])
 	}
 
 	pi, err := verifier.ParseCertChainRS4096(signals.CertChain)
@@ -151,13 +150,13 @@ func TestVerifier_SmtRootEnforcement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read cert_chain proof: %v", err)
 	}
-	dsProof, err := os.ReadFile(filepath.Join(artifactsDir, "device_sig_rs2048_proof.bin"))
+	usProof, err := os.ReadFile(filepath.Join(artifactsDir, "user_sig_rs2048_proof.bin"))
 	if err != nil {
-		t.Fatalf("read device_sig proof: %v", err)
+		t.Fatalf("read user_sig proof: %v", err)
 	}
 	req := Request{
 		CertChainProof: ccProof,
-		DeviceSigProof: dsProof,
+		UserSigProof:   usProof,
 		ProofType:      ProofTypeRS2048,
 	}
 
@@ -227,12 +226,12 @@ func TestVerifier_NilProviderPassthrough(t *testing.T) {
 
 	artifactsDir := filepath.Join("..", "tests", "artifacts", "cc2048_ds2048")
 	ccProof, _ := os.ReadFile(filepath.Join(artifactsDir, "cert_chain_rs2048_proof.bin"))
-	dsProof, _ := os.ReadFile(filepath.Join(artifactsDir, "device_sig_rs2048_proof.bin"))
+	usProof, _ := os.ReadFile(filepath.Join(artifactsDir, "user_sig_rs2048_proof.bin"))
 
 	v := &Verifier{KeysDir: absKeysDir, Logger: smtroot.DefaultLogger{}}
 	result, err := v.Verify(Request{
 		CertChainProof: ccProof,
-		DeviceSigProof: dsProof,
+		UserSigProof:   usProof,
 		ProofType:      ProofTypeRS2048,
 	})
 	if err != nil {
@@ -262,12 +261,12 @@ func TestServiceChallenge_RealProof(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read cert_chain proof: %v", err)
 	}
-	dsProof, err := os.ReadFile(filepath.Join(artifactsDir, "device_sig_rs2048_proof.bin"))
+	usProof, err := os.ReadFile(filepath.Join(artifactsDir, "user_sig_rs2048_proof.bin"))
 	if err != nil {
-		t.Fatalf("read device_sig proof: %v", err)
+		t.Fatalf("read user_sig proof: %v", err)
 	}
 
-	_, signals, err := Verify(Request{CertChainProof: ccProof, DeviceSigProof: dsProof, ProofType: ProofTypeRS2048}, keysDir)
+	_, signals, err := Verify(Request{CertChainProof: ccProof, UserSigProof: usProof, ProofType: ProofTypeRS2048}, keysDir)
 	if err != nil {
 		t.Fatalf("baseline Verify: %v", err)
 	}
@@ -285,7 +284,7 @@ func TestServiceChallenge_RealProof(t *testing.T) {
 		c := futureChallenge(key)
 		fs := &fakeStore{byID: map[string]*store.Challenge{c.Challenge: c}}
 		res, err := NewService(v, fs).VerifyAndRecord(t.Context(), Request{
-			CertChainProof: ccProof, DeviceSigProof: dsProof, ProofType: ProofTypeRS2048,
+			CertChainProof: ccProof, UserSigProof: usProof, ProofType: ProofTypeRS2048,
 		})
 		if err != nil {
 			t.Fatalf("VerifyAndRecord: %v", err)
@@ -302,7 +301,7 @@ func TestServiceChallenge_RealProof(t *testing.T) {
 		// Store does not contain the challenge bound into the proof.
 		fs := &fakeStore{byID: map[string]*store.Challenge{}}
 		_, err := NewService(v, fs).VerifyAndRecord(t.Context(), Request{
-			CertChainProof: ccProof, DeviceSigProof: dsProof, ProofType: ProofTypeRS2048,
+			CertChainProof: ccProof, UserSigProof: usProof, ProofType: ProofTypeRS2048,
 		})
 		if !errors.Is(err, store.ErrChallengeNotFound) {
 			t.Fatalf("expected ErrChallengeNotFound, got %v", err)

@@ -30,5 +30,5 @@ type VerifyFailResponse struct {
 type LinkVerifyRequest struct {
 	CertChainType  string `json:"cert_chain_type"`
 	CertChainProof []byte `json:"cert_chain_proof"`
-	DeviceSigProof []byte `json:"device_sig_proof"`
+	UserSigProof []byte `json:"user_sig_proof"`
 }

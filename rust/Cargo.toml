@@ -9,7 +9,7 @@ crate-type = ["staticlib", "cdylib"]
 
 [features]
 # Enable with: cargo test --features proof-e2e
-# Requires `yarn compile:cert_chain_rs4096` and `yarn compile:device_sig_rs2048` to have been run.
+# Requires `yarn compile:cert_chain_rs4096` and `yarn compile:user_sig_rs2048` to have been run.
 proof-e2e = ["openac-mobile-app"]
 
 [dependencies]

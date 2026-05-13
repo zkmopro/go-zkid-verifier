@@ -51,8 +51,8 @@ func TestLinkVerifyRS2048(t *testing.T) {
 	absKeysDir, _ := filepath.Abs(keysDir)
 	artifactsDir := filepath.Join("..", "tests", "artifacts", "cc2048_ds2048")
 	tmpDir := setupVerifyDir(t, artifactsDir, absKeysDir,
-		[]string{"cert_chain_rs2048_proof.bin", "device_sig_rs2048_proof.bin"},
-		[]string{"cert_chain_rs2048_verifying.key", "device_sig_rs2048_verifying.key"},
+		[]string{"cert_chain_rs2048_proof.bin", "user_sig_rs2048_proof.bin"},
+		[]string{"cert_chain_rs2048_verifying.key", "user_sig_rs2048_verifying.key"},
 	)
 
 	valid, signals, err := LinkVerify(tmpDir, CertChainRS2048)
@@ -66,7 +66,7 @@ func TestLinkVerifyRS2048(t *testing.T) {
 		t.Fatal("expected non-nil public signals")
 	}
 	t.Logf("cert_chain signals: %v", signals.CertChain)
-	t.Logf("device_sig signals: %v", signals.DeviceSig)
+	t.Logf("user_sig signals: %v", signals.UserSig)
 }
 
 func TestLinkVerifyRS4096(t *testing.T) {
@@ -81,8 +81,8 @@ func TestLinkVerifyRS4096(t *testing.T) {
 	absKeysDir, _ := filepath.Abs(keysDir)
 	artifactsDir := filepath.Join("..", "tests", "artifacts", "cc4096_ds2048")
 	tmpDir := setupVerifyDir(t, artifactsDir, absKeysDir,
-		[]string{"cert_chain_rs4096_proof.bin", "device_sig_rs2048_proof.bin"},
-		[]string{"cert_chain_rs4096_verifying.key", "device_sig_rs2048_verifying.key"},
+		[]string{"cert_chain_rs4096_proof.bin", "user_sig_rs2048_proof.bin"},
+		[]string{"cert_chain_rs4096_verifying.key", "user_sig_rs2048_verifying.key"},
 	)
 
 	valid, signals, err := LinkVerify(tmpDir, CertChainRS4096)
@@ -96,5 +96,5 @@ func TestLinkVerifyRS4096(t *testing.T) {
 		t.Fatal("expected non-nil public signals")
 	}
 	t.Logf("cert_chain signals: %v", signals.CertChain)
-	t.Logf("device_sig signals: %v", signals.DeviceSig)
+	t.Logf("user_sig signals: %v", signals.UserSig)
 }

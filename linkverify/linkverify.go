@@ -15,8 +15,8 @@ type PublicSignals = verifier.PublicSignals
 type ProofType string
 
 const (
-	ProofTypeRS2048 ProofType = "rs2048" // cert_chain_rs2048 + device_sig_rs2048
-	ProofTypeRS4096 ProofType = "rs4096" // cert_chain_rs4096 + device_sig_rs2048
+	ProofTypeRS2048 ProofType = "rs2048" // cert_chain_rs2048 + user_sig_rs2048
+	ProofTypeRS4096 ProofType = "rs4096" // cert_chain_rs4096 + user_sig_rs2048
 )
 
 // ParseProofType validates cert_chain_type. An empty string defaults to RS2048.
@@ -45,14 +45,14 @@ var verifySem = make(chan struct{}, 10)
 // Request holds the proof data for a link-verify operation.
 type Request struct {
 	CertChainProof []byte    // binary proof bytes
-	DeviceSigProof []byte    // binary proof bytes
+	UserSigProof   []byte    // binary proof bytes
 	ProofType      ProofType // "rs2048" or "rs4096"
 }
 
 // proofFileNames returns the expected file names for the proof type.
-func proofFileNames(pt ProofType) (ccProof, dsProof, ccVK, dsVK string) {
-	dsProof = "device_sig_rs2048_proof.bin"
-	dsVK = "device_sig_rs2048_verifying.key"
+func proofFileNames(pt ProofType) (ccProof, usProof, ccVK, dsVK string) {
+	usProof = "user_sig_rs2048_proof.bin"
+	dsVK = "user_sig_rs2048_verifying.key"
 	if pt == ProofTypeRS4096 {
 		ccProof = "cert_chain_rs4096_proof.bin"
 		ccVK = "cert_chain_rs4096_verifying.key"
@@ -73,7 +73,7 @@ func Verify(req Request, keysDir string) (bool, *PublicSignals, error) {
 		pt = ProofTypeRS2048
 	}
 
-	ccProofName, dsProofName, ccVKName, dsVKName := proofFileNames(pt)
+	ccProofName, usProofName, ccVKName, dsVKName := proofFileNames(pt)
 
 	tmpDir, err := os.MkdirTemp("", "zkid-linkverify-*")
 	if err != nil {
@@ -89,8 +89,8 @@ func Verify(req Request, keysDir string) (bool, *PublicSignals, error) {
 	if err := os.WriteFile(filepath.Join(tmpKeys, ccProofName), req.CertChainProof, 0o600); err != nil {
 		return false, nil, fmt.Errorf("write cert-chain proof: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpKeys, dsProofName), req.DeviceSigProof, 0o600); err != nil {
-		return false, nil, fmt.Errorf("write device-sig proof: %w", err)
+	if err := os.WriteFile(filepath.Join(tmpKeys, usProofName), req.UserSigProof, 0o600); err != nil {
+		return false, nil, fmt.Errorf("write user-sig proof: %w", err)
 	}
 
 	for _, vk := range []string{ccVKName, dsVKName} {

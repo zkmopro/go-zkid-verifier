@@ -1,5 +1,5 @@
 use ecdsa_spartan2::{
-    verify_circuit, CertChainRsa2048, CertChainRsa4096, DeviceSigRsa2048, PathConfig, RsaKeySize,
+    verify_circuit, CertChainRsa2048, CertChainRsa4096, UserSigRsa2048, PathConfig, RsaKeySize,
 };
 use ff::PrimeField;
 use std::cell::RefCell;
@@ -41,7 +41,7 @@ fn set_last_signals(cc_hexes: Vec<String>, ds_hexes: Vec<String>) {
             .join(",")
     };
     let json = format!(
-        r#"{{"cert_chain":[{}],"device_sig":[{}]}}"#,
+        r#"{{"cert_chain":[{}],"user_sig":[{}]}}"#,
         to_json_array(cc_hexes),
         to_json_array(ds_hexes)
     );
@@ -66,7 +66,7 @@ pub extern "C" fn zk_last_error() -> *const std::os::raw::c_char {
 ///
 /// Reads from {base_dir}/keys/:
 ///   - cert_chain proof (rs2048 or rs4096 depending on cert_chain_type)
-///   - device_sig_rs2048 proof
+///   - user_sig_rs2048 proof
 ///   - corresponding verifying keys
 ///
 /// cert_chain_type: 0 = rs2048, 1 = rs4096
@@ -109,13 +109,13 @@ pub extern "C" fn zk_link_verify(
 
         // Verify device-sig proof
         let ds_public_values = verify_circuit(
-            path_config.artifact_path(DeviceSigRsa2048::PROOF),
-            path_config.key_path(DeviceSigRsa2048::VERIFYING_KEY),
+            path_config.artifact_path(UserSigRsa2048::PROOF),
+            path_config.key_path(UserSigRsa2048::VERIFYING_KEY),
         );
 
         if cc_public_values.is_empty() || ds_public_values.is_empty() {
             panic!(
-                "public values empty: cert_chain={}, device_sig={}",
+                "public values empty: cert_chain={}, user_sig={}",
                 cc_public_values.len(),
                 ds_public_values.len()
             );

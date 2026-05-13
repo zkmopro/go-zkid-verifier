@@ -25,9 +25,9 @@ func main() {
 		}
 	}
 
-	typeName := "cert_chain_rs2048 + device_sig_rs2048"
+	typeName := "cert_chain_rs2048 + user_sig_rs2048"
 	if certChainType == verifier.CertChainRS4096 {
-		typeName = "cert_chain_rs4096 + device_sig_rs2048"
+		typeName = "cert_chain_rs4096 + user_sig_rs2048"
 	}
 
 	fmt.Printf("=== zkID Link Verifier ===\n")
@@ -44,7 +44,7 @@ func main() {
 		fmt.Println("Link verification PASSED: pk_commit_A == pk_commit_B")
 		if signals != nil {
 			fmt.Printf("Cert-chain public values: %v\n", signals.CertChain)
-			fmt.Printf("Device-sig public values: %v\n", signals.DeviceSig)
+			fmt.Printf("User-sig public values: %v\n", signals.UserSig)
 		}
 	} else {
 		fmt.Println("Link verification FAILED: pk_commit mismatch")

@@ -20,7 +20,7 @@ const maxKeySize = 600 * 1024 * 1024
 var RequiredKeys = []string{
 	"cert_chain_rs2048_verifying.key",
 	"cert_chain_rs4096_verifying.key",
-	"device_sig_rs2048_verifying.key",
+	"user_sig_rs2048_verifying.key",
 }
 
 var httpClient = &http.Client{Timeout: 10 * time.Minute}
