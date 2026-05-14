@@ -16,15 +16,15 @@ else
 endif
 
 LIB_DIR  := $(CURDIR)/lib/$(RUST_TARGET)
-RUST_LIB := $(LIB_DIR)/libzk_verifier.a
 BASE_DIR ?= $(CURDIR)
 
-.PHONY: all build build-server build-verifier test test-challenge test-verifier \
-        test-linkverify verify serve download-keys proto clean
+.PHONY: all build build-server build-verifier rust-lib test test-challenge \
+        test-verifier test-linkverify verify serve download-keys proto clean
 
 all: build
 
-$(RUST_LIB):
+# Phony so cargo (not make) decides whether a rebuild is needed.
+rust-lib:
 ifeq ($(UNAME_S),Darwin)
 	cd $(RUST_DIR) && cargo build --release
 else
@@ -36,21 +36,21 @@ endif
 	find $(RUST_OUT_DIR)/build -name 'libfr.a' -exec cp {} $(LIB_DIR)/ \;
 	find $(RUST_OUT_DIR)/build -name 'libgmp.a' -exec cp {} $(LIB_DIR)/ \;
 
-build-server: $(RUST_LIB)
+build-server: rust-lib
 	go build -o zkid-server ./cmd/server
 
-build-verifier: $(RUST_LIB)
+build-verifier: rust-lib
 	go build -o zkid-verifier ./cmd/verifier
 
 build: build-server build-verifier
 
-test-challenge: $(RUST_LIB)
+test-challenge: rust-lib
 	go test ./store/ ./challenge/ -v
 
-test-verifier: $(RUST_LIB)
+test-verifier: rust-lib
 	$(LD_PATH_VAR)=$(LIB_DIR) ZK_BASE_DIR=$(BASE_DIR) go test ./verifier/ -v
 
-test-linkverify: $(RUST_LIB)
+test-linkverify: rust-lib
 	$(LD_PATH_VAR)=$(LIB_DIR) go test ./linkverify/ -v
 
 test: test-challenge test-verifier test-linkverify
@@ -72,4 +72,5 @@ proto:
 clean:
 	cd $(RUST_DIR) && cargo clean
 	go clean ./...
+	rm -rf $(LIB_DIR)
 	rm -f zkid-server zkid-verifier
