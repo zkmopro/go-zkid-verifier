@@ -14,10 +14,19 @@ Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plu
 
 ## Quickstart
 
+Clone both repos side-by-side — the Rust crate links against zkID through the relative path `../../zkID/wallet-unit-poc/ecdsa-spartan2`, so the two checkouts must share a parent directory.
+
 ```bash
 git clone https://github.com/zkmopro/go-zkid-verifier.git
 git clone https://github.com/zkmopro/zkID.git
-cd go-zkid-verifier
+
+# Compile zkID's circom circuits first. The Rust build links the C++ witness
+# calculator generated here; without it, `make serve` aborts in build.rs with
+# `Required circuit file not found: …/build/cpp/userSigRS2048.cpp`.
+cd zkID/wallet-unit-poc/circom
+yarn install
+yarn compile:all      # or `yarn compile:userSigRS2048` for the verifier's minimum
+cd ../../../go-zkid-verifier
 
 make serve            # builds Rust + Go, downloads verifying keys, runs server
 ```
@@ -46,6 +55,7 @@ curl -s http://localhost:8080/issuer-cert/status | jq .
 ### Prerequisites
 
 - Go 1.25+ and Rust (stable)
+- Node.js + Yarn and [circom](https://docs.circom.io/getting-started/installation/) 2.2.3 — used by `yarn compile:all` in `zkID/wallet-unit-poc/circom` to produce the C++ witness calculator the Rust build links against
 - macOS or Linux
   - macOS: `xcode-select --install`
   - Linux: `sudo apt-get install -y g++ libstdc++-12-dev nasm libgmp-dev`
