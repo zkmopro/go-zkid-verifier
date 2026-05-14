@@ -73,4 +73,5 @@ clean:
 	cd $(RUST_DIR) && cargo clean
 	go clean ./...
 	rm -rf $(LIB_DIR)
+	rm -rf keys/
 	rm -f zkid-server zkid-verifier
