@@ -1,10 +1,5 @@
 /// Full ZK proof pipeline e2e test: generate inputs → setup keys → prove → verify → link-verify.
 ///
-/// Prerequisites:
-///   cd ../../zkID/wallet-unit-poc/circom
-///   yarn compile:cert_chain_rs4096   # writes circom/build/cert_chain_rs4096/…/cert_chain_rs4096.r1cs
-///   yarn compile:user_sig_rs2048   # writes circom/build/user_sig_rs2048/…/user_sig_rs2048.r1cs
-///
 /// Run:
 ///   cargo test --release --features proof-e2e -- --test-threads=1 --nocapture
 #[cfg(feature = "proof-e2e")]
@@ -27,11 +22,11 @@ mod proof_e2e {
     const USER_SIG_RS2048_VERIFYING_KEY_URL: &str =
         "https://github.com/zkmopro/zkID/releases/download/latest/user_sig_rs2048_verifying.key.gz";
 
-    // Test fixture paths.
-    const FAKE_CERT_RESPONSE_PATH: &str =
-        "../../zkID/wallet-unit-poc/ecdsa-spartan2/tests/testdata/rs4096_response_sign.json";
-    const FAKE_ISSUER_CERT_PATH: &str =
-        "../../zkID/wallet-unit-poc/ecdsa-spartan2/tests/testdata/test_ca_rs4096.der";
+    // Test fixture URLs.
+    const FAKE_CERT_RESPONSE_URL: &str =
+        "https://raw.githubusercontent.com/zkmopro/zkID/main/wallet-unit-poc/ecdsa-spartan2/tests/testdata/rs4096_response_sign.json";
+    const FAKE_ISSUER_CERT_URL: &str =
+        "https://raw.githubusercontent.com/zkmopro/zkID/main/wallet-unit-poc/ecdsa-spartan2/tests/testdata/test_ca_rs4096.der";
     const REAL_TW_FIDO_SIGN_RESPONSE_PATH: &str = "tests/data/tw_fido_sign_response.json";
     const REAL_TW_FIDO_SIGN_RESPONSE_WRONG_APP_ID_PATH: &str =
         "tests/data/tw_fido_sign_response_wrong_app_id.json";
@@ -344,19 +339,28 @@ mod proof_e2e {
 
     #[test]
     fn test_untrusted_ca() {
-        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let fake_cert_str = std::fs::read_to_string(manifest.join(FAKE_CERT_RESPONSE_PATH))
-            .expect("FAKE_CERT_RESPONSE_PATH must exist");
+        let fake_cert_str = reqwest::blocking::get(FAKE_CERT_RESPONSE_URL)
+            .unwrap_or_else(|e| panic!("GET {FAKE_CERT_RESPONSE_URL} failed: {e}"))
+            .text()
+            .unwrap_or_else(|e| panic!("reading {FAKE_CERT_RESPONSE_URL}: {e}"));
         let (certb64, signed_response) = serde_json::from_str::<AnySignResponse>(&fake_cert_str)
             .expect("fake cert response must be valid AnySignResponse JSON")
             .into_cert_and_sig();
+
+        let issuer_cert_bytes = reqwest::blocking::get(FAKE_ISSUER_CERT_URL)
+            .unwrap_or_else(|e| panic!("GET {FAKE_ISSUER_CERT_URL} failed: {e}"))
+            .bytes()
+            .unwrap_or_else(|e| panic!("reading {FAKE_ISSUER_CERT_URL}: {e}"));
+        let tmp_cert = tempfile::NamedTempFile::new().expect("create temp file for issuer cert");
+        std::fs::write(tmp_cert.path(), &issuer_cert_bytes)
+            .expect("write issuer cert to temp file");
 
         let body = fresh_challenge();
         assert_rejected(
             ProofRequest::new(&body.challenge)
                 .app_id(&body.app_id)
                 .cert_response(certb64, signed_response)
-                .issuer_cert(manifest.join(FAKE_ISSUER_CERT_PATH).to_string_lossy())
+                .issuer_cert(tmp_cert.path().to_string_lossy())
                 .run(),
             reqwest::StatusCode::CONFLICT,
             "issuer_modulus_mismatch",

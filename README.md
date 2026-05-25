@@ -14,21 +14,15 @@ Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plu
 
 ## Quickstart
 
-Clone both repos side-by-side — the Rust crate links against zkID through the relative path `../../zkID/wallet-unit-poc/ecdsa-spartan2`, so the two checkouts must share a parent directory.
+The Rust crate fetches the zkID source via Cargo. The C++ witness-calculator artifacts are bundled inside the dependency — no local zkID clone or Yarn/circom toolchain required.
 
 ```bash
 git clone https://github.com/zkmopro/go-zkid-verifier.git
-git clone https://github.com/zkmopro/zkID.git
-
-# Compile zkID's circom circuits first. The Rust build links the C++ witness
-# calculator generated here; without it, `make serve` aborts in build.rs with
-# `Required circuit file not found: …/build/cpp/userSigRS2048.cpp`.
-cd zkID/wallet-unit-poc/circom
-yarn install
-yarn compile:all      # or `yarn compile:userSigRS2048` for the verifier's minimum
-cd ../../../go-zkid-verifier
-
-make serve            # builds Rust + Go, downloads verifying keys, runs server
+cd go-zkid-verifier
+make build            # downloads artifacts, builds Rust + Go binaries
+cp .env.example .env
+echo "APP_ID=$(LC_ALL=C tr -dc '0-9a-f' </dev/urandom | head -c 31)" >> .env
+make serve
 ```
 
 - HTTP on `:8080`, gRPC on `:9090`
@@ -55,7 +49,6 @@ curl -s http://localhost:8080/issuer-cert/status | jq .
 ### Prerequisites
 
 - Go 1.25+ and Rust (stable)
-- Node.js + Yarn and [circom](https://docs.circom.io/getting-started/installation/) 2.2.3 — used by `yarn compile:all` in `zkID/wallet-unit-poc/circom` to produce the C++ witness calculator the Rust build links against
 - macOS or Linux
   - macOS: `xcode-select --install`
   - Linux: `sudo apt-get install -y g++ libstdc++-12-dev nasm libgmp-dev`
@@ -322,9 +315,7 @@ go test -tags integration ./issuercert/...
 
 ```bash
 cargo install cross --git https://github.com/cross-rs/cross
-
-CROSS_CONTAINER_OPTS="-v /path/to/zkID:/path/to/zkID" \
-  cross build --target x86_64-unknown-linux-gnu --release
+cross build --manifest-path rust/Cargo.toml --target x86_64-unknown-linux-gnu --release
 
 mkdir -p lib/x86_64-unknown-linux-gnu
 cp rust/target/x86_64-unknown-linux-gnu/release/libzk_verifier.a lib/x86_64-unknown-linux-gnu/
@@ -334,4 +325,4 @@ cp rust/target/x86_64-unknown-linux-gnu/release/libzk_verifier.a lib/x86_64-unkn
 
 ### CI
 
-`.github/workflows/ci.yml` runs a pure-Go `challenge-server` job (CGO off, `./store/`) and a `verifier` matrix (macOS + Linux) that clones zkID at a pinned commit, builds the Rust lib, downloads verifying keys, and runs the full test suite including RS2048 / RS4096 FFI fixtures. Trust-anchor packages use injected static providers so CI never hits live endpoints.
+`.github/workflows/ci.yml` runs a pure-Go `challenge-server` job (CGO off, `./store/`) and a `verifier` matrix (macOS + Linux) that downloads pre-built circom artifacts from the zkID GitHub release, builds the Rust lib, downloads verifying keys, and runs the full test suite including RS2048 / RS4096 FFI fixtures. Trust-anchor packages use injected static providers so CI never hits live endpoints.
