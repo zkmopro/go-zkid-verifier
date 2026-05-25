@@ -137,17 +137,16 @@ The `smt_root`, `issuer_modulus`, and `app_id` blocks are each present whenever 
 | Code | Reason / meaning | Notes |
 |---|---|---|
 | `200` | `verified=true` — proof accepted, record persisted, challenge consumed. |  |
-| `200` | `verified=false, reason="proof_invalid"` — FFI rejected the proof. | Record **not** persisted, challenge **not** consumed. |
 | `400` | Request body malformed or missing `cert_chain_proof` / `user_sig_proof` / valid `cert_chain_type`. |  |
 | `400` | Challenge expired. | Challenge exists but passed its 5-minute TTL. |
-| `404` | Challenge not found. | The challenge extracted from the proof's public inputs doesn't match any issued challenge. |
+| `404` | Challenge not found or already consumed. | The challenge extracted from the proof's public inputs doesn't match any issued challenge. |
 | `409` | `reason="smt_root_mismatch"` | Prover's `smt_root` disagrees with the trusted root — stale client. |
 | `409` | `reason="issuer_modulus_mismatch"` | Prover's issuer modulus doesn't match MOICA-G2/G3 — wrong-issuer proof. |
 | `409` | `reason="app_id_mismatch"` | The proof's `app_id` doesn't match the server's configured `APP_ID` — proof was minted for a different application. |
 | `409` | Duplicate nullifier. | Same `nullifier` already verified. Response echoes `nullifier`. |
 | `410` | Challenge already consumed. |  |
 | `503` | Trust-anchor provider unavailable. | SMT root or issuer cert not cached — transient; retry. |
-| `500` | FFI crash or other infrastructure failure. |  |
+| `500` | `"proof verification failed"` — FFI error or other infrastructure failure. |  |
 
 ### Debug endpoint (dev only)
 
