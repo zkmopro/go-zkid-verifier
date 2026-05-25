@@ -290,6 +290,21 @@ Sentinel errors bubble unwrapped so each transport picks its own status code: `s
 
 `linkverify.Verify` caps concurrent ZK verifications at 10 (semaphore) and stages each proof in a temp dir with symlinked verifying keys.
 
+## Updating the server
+
+```bash
+# update git
+git pull origin main
+
+# clean
+rm -rf keys
+rm -rf lib
+
+# build
+make download-keys
+make build
+```
+
 ## Development
 
 | Target | Description |
