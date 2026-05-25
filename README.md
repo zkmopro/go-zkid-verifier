@@ -297,8 +297,7 @@ Sentinel errors bubble unwrapped so each transport picks its own status code: `s
 git pull origin main
 
 # clean
-rm -rf keys
-rm -rf lib
+make clean
 
 # build
 make download-keys
