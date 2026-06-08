@@ -5,7 +5,7 @@ A Go server that issues challenges and verifies zero-knowledge proofs of Taiwan 
 Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plus one user-signature proof (RSA-2048) and enforces five things server-side:
 
 1. The FFI accepts both proofs and their `pk_commit` linkage holds.
-2. The `smt_root` public input matches the current revocation-list root for the issuer ([moica-revocation-smt](https://github.com/moven0831/moica-revocation-smt)).
+2. The `smt_root` public input matches the current revocation-list root for the issuer ([moica-revocation-smt](https://github.com/privacy-ethereum/moica-revocation-smt)).
 3. The `issuer_rsa_modulus` public input matches the RSA modulus of the published MOICA-G2 (RS2048) or MOICA-G3 (RS4096) certificate — i.e. the proof was actually signed by MOICA, not an impostor.
 4. The `app_id` reconstructed from user_sig public values matches the configured `APP_ID` env value (constant-time compare). The prover signs `APP_ID`; the resulting RSA signature derives the cardholder-bound `nullifier` inside the same circuit.
 5. The per-session `challenge` bound into the user-sig proof matches the value `/challenge` issued. The binding is a Semaphore-style dummy square (`challengeSquared <== challenge * challenge`) — see [PR#60 follow-on](https://github.com/zkmopro/zkID/pull/60). Stops replay of pre-generated proofs across sessions.
@@ -211,7 +211,7 @@ All via environment variables.
 | `SMT_ROOT_ENFORCE` | `strict` | `strict` = hard-fail on mismatch; `disabled` = skip (dev only) |
 | `SMT_ROOT_RPC_URL` | `https://sepolia-rollup.arbitrum.io/rpc` | Arbitrum Sepolia JSON-RPC |
 | `SMT_ROOT_CONTRACT` | `0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA` | `SMTRootStorage` address |
-| `SMT_ROOT_GITHUB_REPO` | `moven0831/moica-revocation-smt` | Fallback repo |
+| `SMT_ROOT_GITHUB_REPO` | `privacy-ethereum/moica-revocation-smt` | Fallback repo |
 | `SMT_ROOT_GITHUB_TAG` | `snapshot-latest` | Fallback release tag |
 | `SMT_ROOT_REFRESH_INTERVAL` | `10m` | SMT refresh cadence |
 | `SMT_ROOT_FETCH_TIMEOUT` | `5s` | Per-source fetch timeout |
