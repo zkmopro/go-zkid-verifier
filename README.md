@@ -27,7 +27,7 @@ make serve
 
 - HTTP on `:8080`, gRPC on `:9090`
 - SQLite at `./zkid.db`
-- SMT root fetched from Arbitrum Sepolia, falling back to a pinned GitHub release
+- SMT root fetched from Ethereum Mainnet, falling back to a pinned GitHub release
 - MOICA issuer certs shipped embedded; refreshed in background from `moica.nat.gov.tw`
 
 Test a round-trip:
@@ -209,8 +209,8 @@ All via environment variables.
 | `CORS_ORIGIN` | `*` | `Access-Control-Allow-Origin` |
 | `APP_ID` | _(required)_ | Exactly 31-character lowercase hex string identifying the relying party. The prover signs these bytes; the verifier hard-fails on mismatch. Generate with: `APP_ID=$(LC_ALL=C tr -dc '0-9a-f' </dev/urandom \| head -c 31)` |
 | `SMT_ROOT_ENFORCE` | `strict` | `strict` = hard-fail on mismatch; `disabled` = skip (dev only) |
-| `SMT_ROOT_RPC_URL` | `https://sepolia-rollup.arbitrum.io/rpc` | Arbitrum Sepolia JSON-RPC |
-| `SMT_ROOT_CONTRACT` | `0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA` | `SMTRootStorage` address |
+| `SMT_ROOT_RPC_URL` | `https://ethereum-rpc.publicnode.com` | Ethereum Mainnet JSON-RPC |
+| `SMT_ROOT_CONTRACT` | `0xf3aAAe2D017dcC9cA901aDC9Da419f1C70362ab1` | `SMTRootStorage` address |
 | `SMT_ROOT_GITHUB_REPO` | `privacy-ethereum/moica-revocation-smt` | Fallback repo |
 | `SMT_ROOT_GITHUB_TAG` | `snapshot-latest` | Fallback release tag |
 | `SMT_ROOT_REFRESH_INTERVAL` | `10m` | SMT refresh cadence |
@@ -226,7 +226,7 @@ All via environment variables.
 
 Both `smt_root` and `issuer_modulus` use the same pattern: pinned trust anchors, background refresh, stale-on-error.
 
-**SMT revocation root.** Primary: `SMTRootStorage.getRoot(bytes32)` on Arbitrum Sepolia. Fallback: `snapshot-latest` GitHub release body. Startup is fail-closed — if neither source responds, the server refuses to boot. Set `SMT_ROOT_ENFORCE=disabled` for local dev.
+**SMT revocation root.** Primary: `SMTRootStorage.getRoot(bytes32)` on Ethereum Mainnet. Fallback: `snapshot-latest` GitHub release body. Startup is fail-closed — if neither source responds, the server refuses to boot. Set `SMT_ROOT_ENFORCE=disabled` for local dev.
 
 **Issuer certificates.** MOICA-G2, MOICA-G3, and both of their GRCA parents ship **embedded** in the binary, with pinned SHA-256 fingerprints. A background fetch from `moica.nat.gov.tw` is *best-effort*: fetched certs must match the pinned fingerprint AND chain-validate to embedded GRCA before they replace the cached record. Fingerprint drift keeps the embedded copy in place and increments `consecutive_fail`. Rotating a cert requires a code release (new embedded bytes + new pinned fingerprint).
 

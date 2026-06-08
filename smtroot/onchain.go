@@ -16,10 +16,12 @@ import (
 )
 
 const (
-	// Public Arbitrum Sepolia JSON-RPC used when SMT_ROOT_RPC_URL is unset.
-	DefaultRPCURL = "https://sepolia-rollup.arbitrum.io/rpc"
-	// SMTRootStorage deployment on Arbitrum Sepolia.
-	DefaultContract = "0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA"
+	// Public Ethereum Mainnet JSON-RPC used when SMT_ROOT_RPC_URL is unset.
+	DefaultRPCURL = "https://ethereum-rpc.publicnode.com"
+	// SMTRootStorage production deployment on Ethereum Mainnet. The legacy
+	// Arbitrum Sepolia deployment (0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA)
+	// is no longer updated by the upstream relayer.
+	DefaultContract = "0xf3aAAe2D017dcC9cA901aDC9Da419f1C70362ab1"
 )
 
 // OnchainSource calls SMTRootStorage.getRoot via eth_call.
