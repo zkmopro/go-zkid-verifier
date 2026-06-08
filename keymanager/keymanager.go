@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-const releaseURL = "https://github.com/zkmopro/zkID/releases/download/latest"
+const releaseURL = "https://github.com/privacy-ethereum/zkID/releases/download/RSA-X.509-Cert-latest"
 
 // maxKeySize caps decompressed input as a gzip-bomb defense.
 const maxKeySize = 2 * 1024 * 1024 * 1024
