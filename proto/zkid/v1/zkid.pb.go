@@ -769,7 +769,7 @@ const file_proto_zkid_v1_zkid_proto_rawDesc = "" +
 	"\x0fCreateChallenge\x12\x1f.zkid.v1.CreateChallengeRequest\x1a .zkid.v1.CreateChallengeResponse\x12K\n" +
 	"\fGetChallenge\x12\x1c.zkid.v1.GetChallengeRequest\x1a\x1d.zkid.v1.GetChallengeResponse\x12E\n" +
 	"\n" +
-	"LinkVerify\x12\x1a.zkid.v1.LinkVerifyRequest\x1a\x1b.zkid.v1.LinkVerifyResponseB:Z8github.com/zkmopro/go-zkid-verifier/proto/zkid/v1;zkidv1b\x06proto3"
+	"LinkVerify\x12\x1a.zkid.v1.LinkVerifyRequest\x1a\x1b.zkid.v1.LinkVerifyResponseBCZAgithub.com/privacy-ethereum/go-zkid-verifier/proto/zkid/v1;zkidv1b\x06proto3"
 
 var (
 	file_proto_zkid_v1_zkid_proto_rawDescOnce sync.Once

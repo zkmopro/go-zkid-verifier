@@ -1,8 +1,8 @@
 package httpapi
 
 import (
-	"github.com/zkmopro/go-zkid-verifier/linkverify"
-	"github.com/zkmopro/go-zkid-verifier/verifier"
+	"github.com/privacy-ethereum/go-zkid-verifier/linkverify"
+	"github.com/privacy-ethereum/go-zkid-verifier/verifier"
 )
 
 type VerifySuccessResponse struct {

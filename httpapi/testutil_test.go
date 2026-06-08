@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zkmopro/go-zkid-verifier/store"
+	"github.com/privacy-ethereum/go-zkid-verifier/store"
 )
 
 const testAppID = "11111111111111111111111111111111111111111111111111111111111111"

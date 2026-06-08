@@ -14,19 +14,19 @@ mod proof_e2e {
 
     // Proving / verifying key download URLs.
     const CERT_CHAIN_RS4096_PROVING_KEY_URL: &str =
-        "https://github.com/zkmopro/zkID/releases/download/latest/cert_chain_rs4096_proving.key.gz";
+        "https://github.com/privacy-ethereum/zkID/releases/download/RSA-X.509-Cert-latest/cert_chain_rs4096_proving.key.gz";
     const CERT_CHAIN_RS4096_VERIFYING_KEY_URL: &str =
-        "https://github.com/zkmopro/zkID/releases/download/latest/cert_chain_rs4096_verifying.key.gz";
+        "https://github.com/privacy-ethereum/zkID/releases/download/RSA-X.509-Cert-latest/cert_chain_rs4096_verifying.key.gz";
     const USER_SIG_RS2048_PROVING_KEY_URL: &str =
-        "https://github.com/zkmopro/zkID/releases/download/latest/user_sig_rs2048_proving.key.gz";
+        "https://github.com/privacy-ethereum/zkID/releases/download/RSA-X.509-Cert-latest/user_sig_rs2048_proving.key.gz";
     const USER_SIG_RS2048_VERIFYING_KEY_URL: &str =
-        "https://github.com/zkmopro/zkID/releases/download/latest/user_sig_rs2048_verifying.key.gz";
+        "https://github.com/privacy-ethereum/zkID/releases/download/RSA-X.509-Cert-latest/user_sig_rs2048_verifying.key.gz";
 
     // Test fixture URLs.
     const FAKE_CERT_RESPONSE_URL: &str =
-        "https://raw.githubusercontent.com/zkmopro/zkID/main/wallet-unit-poc/ecdsa-spartan2/tests/testdata/rs4096_response_sign.json";
+        "https://raw.githubusercontent.com/privacy-ethereum/zkID/RSA-X.509-Cert/wallet-unit-poc/ecdsa-spartan2/tests/testdata/rs4096_response_sign.json";
     const FAKE_ISSUER_CERT_URL: &str =
-        "https://raw.githubusercontent.com/zkmopro/zkID/main/wallet-unit-poc/ecdsa-spartan2/tests/testdata/test_ca_rs4096.der";
+        "https://raw.githubusercontent.com/privacy-ethereum/zkID/RSA-X.509-Cert/wallet-unit-poc/ecdsa-spartan2/tests/testdata/test_ca_rs4096.der";
     const REAL_TW_FIDO_SIGN_RESPONSE_PATH: &str = "tests/data/tw_fido_sign_response.json";
     const REAL_TW_FIDO_SIGN_RESPONSE_WRONG_APP_ID_PATH: &str =
         "tests/data/tw_fido_sign_response_wrong_app_id.json";

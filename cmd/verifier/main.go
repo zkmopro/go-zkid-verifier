@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/zkmopro/go-zkid-verifier/verifier"
+	"github.com/privacy-ethereum/go-zkid-verifier/verifier"
 )
 
 func main() {

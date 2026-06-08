@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/zkmopro/go-zkid-verifier/issuercert"
+	"github.com/privacy-ethereum/go-zkid-verifier/issuercert"
 )
 
 func TestIssuerCertStatus_Disabled(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/zkmopro/go-zkid-verifier/store"
+	"github.com/privacy-ethereum/go-zkid-verifier/store"
 )
 
 // cleanDB returns a handler that wipes the challenges and verifications tables.

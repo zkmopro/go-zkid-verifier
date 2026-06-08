@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/zkmopro/go-zkid-verifier/smtroot"
+	"github.com/privacy-ethereum/go-zkid-verifier/smtroot"
 )
 
 func smtRootStatus(provider *smtroot.Provider) http.HandlerFunc {

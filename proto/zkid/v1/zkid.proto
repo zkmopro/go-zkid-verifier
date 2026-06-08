@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package zkid.v1;
 
-option go_package = "github.com/zkmopro/go-zkid-verifier/proto/zkid/v1;zkidv1";
+option go_package = "github.com/privacy-ethereum/go-zkid-verifier/proto/zkid/v1;zkidv1";
 
 service ZkIDVerifier {
   // CreateChallenge generates a new challenge nonce for ZK verification.

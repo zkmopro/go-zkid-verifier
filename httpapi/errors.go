@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/zkmopro/go-zkid-verifier/store"
+	"github.com/privacy-ethereum/go-zkid-verifier/store"
 )
 
 func jsonError(w http.ResponseWriter, msg string, code int) {

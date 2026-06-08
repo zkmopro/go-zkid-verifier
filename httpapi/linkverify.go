@@ -7,8 +7,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/zkmopro/go-zkid-verifier/linkverify"
-	"github.com/zkmopro/go-zkid-verifier/store"
+	"github.com/privacy-ethereum/go-zkid-verifier/linkverify"
+	"github.com/privacy-ethereum/go-zkid-verifier/store"
 )
 
 func linkVerify(service *linkverify.Service) http.HandlerFunc {

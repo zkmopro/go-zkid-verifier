@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/zkmopro/go-zkid-verifier/issuercert"
-	"github.com/zkmopro/go-zkid-verifier/smtroot"
-	"github.com/zkmopro/go-zkid-verifier/verifier"
+	"github.com/privacy-ethereum/go-zkid-verifier/issuercert"
+	"github.com/privacy-ethereum/go-zkid-verifier/smtroot"
+	"github.com/privacy-ethereum/go-zkid-verifier/verifier"
 )
 
 const (

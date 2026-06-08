@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zkmopro/go-zkid-verifier/issuercert"
-	"github.com/zkmopro/go-zkid-verifier/verifier"
+	"github.com/privacy-ethereum/go-zkid-verifier/issuercert"
+	"github.com/privacy-ethereum/go-zkid-verifier/verifier"
 )
 
 func TestLimbConventionMatchesCircuit_RS2048(t *testing.T) {

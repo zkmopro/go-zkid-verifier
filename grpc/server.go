@@ -6,9 +6,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/zkmopro/go-zkid-verifier/linkverify"
-	pb "github.com/zkmopro/go-zkid-verifier/proto/zkid/v1"
-	"github.com/zkmopro/go-zkid-verifier/store"
+	"github.com/privacy-ethereum/go-zkid-verifier/linkverify"
+	pb "github.com/privacy-ethereum/go-zkid-verifier/proto/zkid/v1"
+	"github.com/privacy-ethereum/go-zkid-verifier/store"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

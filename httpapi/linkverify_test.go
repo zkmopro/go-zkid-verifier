@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zkmopro/go-zkid-verifier/linkverify"
-	"github.com/zkmopro/go-zkid-verifier/store"
-	"github.com/zkmopro/go-zkid-verifier/verifier"
+	"github.com/privacy-ethereum/go-zkid-verifier/linkverify"
+	"github.com/privacy-ethereum/go-zkid-verifier/store"
+	"github.com/privacy-ethereum/go-zkid-verifier/verifier"
 )
 
 type fakeVerifier struct {

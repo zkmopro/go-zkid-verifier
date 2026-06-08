@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zkmopro/go-zkid-verifier/linkverify"
-	"github.com/zkmopro/go-zkid-verifier/store"
+	"github.com/privacy-ethereum/go-zkid-verifier/linkverify"
+	"github.com/privacy-ethereum/go-zkid-verifier/store"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
