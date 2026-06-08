@@ -1,12 +1,13 @@
 # Test fixtures
 
-`cc{2048,4096}_ds2048/*.bin` are spartan2 proof binaries paired with the verifying keys auto-downloaded by `keymanager` from the [zkID `latest` release](https://github.com/zkmopro/zkID/releases/tag/latest). Whenever the cert-chain or device-sig circuit changes (and the upstream release is rebuilt) the fixtures must be regenerated against the new keys, otherwise integration tests fail loudly with a public-input count mismatch.
+`cc{2048,4096}_ds2048/*.bin` are spartan2 proof binaries paired with the verifying keys auto-downloaded by `keymanager` from the [zkID `RSA-X.509-Cert-latest` release](https://github.com/privacy-ethereum/zkID/releases/tag/RSA-X.509-Cert-latest). Whenever the cert-chain or device-sig circuit changes (and the upstream release is rebuilt) the fixtures must be regenerated against the new keys, otherwise integration tests fail loudly with a public-input count mismatch.
 
 ## Regenerating
 
 ```bash
 # 1. Make sure circom + node + yarn + cargo are installed.
-git clone https://github.com/zkmopro/zkID.git ../../zkID
+git clone https://github.com/privacy-ethereum/zkID.git ../../zkID
+git -C ../../zkID checkout RSA-X.509-Cert
 
 # 2. Recompile the circuits (writes R1CS + wasm + cpp under wallet-unit-poc/circom/build/).
 cd ../../zkID/wallet-unit-poc/circom
@@ -41,7 +42,7 @@ cp keys/user_sig_rs2048_proof.bin /path/to/go-zkid-verifier/tests/artifacts/cc40
 
 # 7. Refresh local verifying keys so the FFI matches the proofs.
 rm -rf ../../../go-zkid-verifier/keys/
-# Keys auto-download from the zkID `latest` release on next `make serve` / test run.
+# Keys auto-download from the zkID `RSA-X.509-Cert-latest` release on next `make serve` / test run.
 ```
 
-The verifying keys at `https://github.com/zkmopro/zkID/releases/tag/latest` are auto-rebuilt by zkID's `rust-tests.yaml` workflow on every `main` push, so a freshly-merged circuit change normally lands new keys within minutes. If `keymanager` keeps downloading stale keys, sanity-check `latest` was actually rebuilt after the offending circuit commit.
+The verifying keys at `https://github.com/privacy-ethereum/zkID/releases/tag/RSA-X.509-Cert-latest` are auto-rebuilt by zkID's `rust-tests.yaml` workflow on every `RSA-X.509-Cert` push, so a freshly-merged circuit change normally lands new keys within minutes. If `keymanager` keeps downloading stale keys, sanity-check `RSA-X.509-Cert-latest` was actually rebuilt after the offending circuit commit.
