@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-RELEASE_URL="https://github.com/zkmopro/zkID/releases/download/latest"
+RELEASE_URL="https://github.com/privacy-ethereum/zkID/releases/download/RSA-X.509-Cert-latest"
 KEYS_DIR="$(cd "$(dirname "$0")/.." && pwd)/keys"
 
 KEYS=(

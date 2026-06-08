@@ -874,7 +874,7 @@ dependencies = [
 [[package]]
 name = "ecdsa-spartan2"
 version = "0.0.1"
-source = "git+https://github.com/zkmopro/zkID.git?branch=main#36bcdd4529e89e9d4828ea81f333797b58a85797"
+source = "git+https://github.com/privacy-ethereum/zkID.git?branch=RSA-X.509-Cert#36bcdd4529e89e9d4828ea81f333797b58a85797"
 dependencies = [
  "anyhow",
  "base64",
@@ -1995,7 +1995,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 [[package]]
 name = "openac-mobile-app"
 version = "0.1.0"
-source = "git+https://github.com/zkmopro/zkID.git?branch=main#36bcdd4529e89e9d4828ea81f333797b58a85797"
+source = "git+https://github.com/privacy-ethereum/zkID.git?branch=RSA-X.509-Cert#36bcdd4529e89e9d4828ea81f333797b58a85797"
 dependencies = [
  "anyhow",
  "bellpepper",
@@ -4376,7 +4376,7 @@ dependencies = [
 [[package]]
 name = "zkid-input-builder"
 version = "0.1.0"
-source = "git+https://github.com/zkmopro/zkID.git?branch=main#36bcdd4529e89e9d4828ea81f333797b58a85797"
+source = "git+https://github.com/privacy-ethereum/zkID.git?branch=RSA-X.509-Cert#36bcdd4529e89e9d4828ea81f333797b58a85797"
 dependencies = [
  "base64",
  "der",

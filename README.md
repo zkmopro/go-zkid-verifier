@@ -1,6 +1,6 @@
 # go-zkid-verifier
 
-A Go server that issues challenges and verifies zero-knowledge proofs of Taiwan CDC card identity, over REST and gRPC. Proofs come from the [zkID](https://github.com/zkmopro/zkID) circuits on top of [Spartan2](https://github.com/therealyingtong/Spartan2.git) with Hyrax commitments.
+A Go server that issues challenges and verifies zero-knowledge proofs of Taiwan CDC card identity, over REST and gRPC. Proofs come from the [zkID](https://github.com/privacy-ethereum/zkID/tree/RSA-X.509-Cert) circuits on top of [Spartan2](https://github.com/therealyingtong/Spartan2.git) with Hyrax commitments.
 
 Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plus one user-signature proof (RSA-2048) and enforces five things server-side:
 

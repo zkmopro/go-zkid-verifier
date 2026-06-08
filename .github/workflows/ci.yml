@@ -38,8 +38,8 @@ jobs:
 
       - name: Clone zkID (pinned for reproducible builds)
         run: |
-          git clone https://github.com/zkmopro/zkID.git zkID
-          cd zkID && git checkout main
+          git clone https://github.com/privacy-ethereum/zkID.git zkID
+          cd zkID && git checkout RSA-X.509-Cert
 
       - name: Stage circom artifacts from zkID release
         working-directory: zkID/wallet-unit-poc
@@ -47,7 +47,7 @@ jobs:
           mkdir -p circom/build/cpp
           cd circom/build/cpp
           for f in certChainRS2048.cpp certChainRS2048.dat userSigRS2048.cpp userSigRS2048.dat; do
-            curl -fL --retry 3 "https://github.com/zkmopro/zkID/releases/download/latest/${f}.gz" -o "${f}.gz"
+            curl -fL --retry 3 "https://github.com/privacy-ethereum/zkID/releases/download/RSA-X.509-Cert-latest/${f}.gz" -o "${f}.gz"
             gunzip -f "${f}.gz"
           done
 
