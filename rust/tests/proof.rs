@@ -10,7 +10,7 @@ mod proof_e2e {
     // SMT snapshot paths and download URLs.
     const OUTDATED_G3_SNAPSHOT_PATH: &str = "tests/data/outdated-g3-tree-snapshot.json.gz";
     const G3_SNAPSHOT_PATH: &str = "tests/data/g3-tree-snapshot.json.gz";
-    const LATEST_G3_SNAPSHOT_URL: &str = "https://github.com/moven0831/moica-revocation-smt/releases/download/snapshot-latest/g3-tree-snapshot.json.gz";
+    const LATEST_G3_SNAPSHOT_URL: &str = "https://github.com/privacy-ethereum/moica-revocation-smt/releases/download/snapshot-latest/g3-tree-snapshot.json.gz";
 
     // Proving / verifying key download URLs.
     const CERT_CHAIN_RS4096_PROVING_KEY_URL: &str =

@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	DefaultGitHubRepo = "moven0831/moica-revocation-smt"
+	DefaultGitHubRepo = "privacy-ethereum/moica-revocation-smt"
 	// Upstream CI refreshes this tag twice a day.
 	DefaultGitHubTag = "snapshot-latest"
 )

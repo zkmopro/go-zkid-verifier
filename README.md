@@ -5,7 +5,7 @@ A Go server that issues challenges and verifies zero-knowledge proofs of Taiwan 
 Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plus one user-signature proof (RSA-2048) and enforces five things server-side:
 
 1. The FFI accepts both proofs and their `pk_commit` linkage holds.
-2. The `smt_root` public input matches the current revocation-list root for the issuer ([moica-revocation-smt](https://github.com/moven0831/moica-revocation-smt)).
+2. The `smt_root` public input matches the current revocation-list root for the issuer ([moica-revocation-smt](https://github.com/privacy-ethereum/moica-revocation-smt)).
 3. The `issuer_rsa_modulus` public input matches the RSA modulus of the published MOICA-G2 (RS2048) or MOICA-G3 (RS4096) certificate — i.e. the proof was actually signed by MOICA, not an impostor.
 4. The `app_id` reconstructed from user_sig public values matches the configured `APP_ID` env value (constant-time compare). The prover signs `APP_ID`; the resulting RSA signature derives the cardholder-bound `nullifier` inside the same circuit.
 5. The per-session `challenge` bound into the user-sig proof matches the value `/challenge` issued. The binding is a Semaphore-style dummy square (`challengeSquared <== challenge * challenge`) — see [PR#60 follow-on](https://github.com/zkmopro/zkID/pull/60). Stops replay of pre-generated proofs across sessions.
@@ -27,7 +27,7 @@ make serve
 
 - HTTP on `:8080`, gRPC on `:9090`
 - SQLite at `./zkid.db`
-- SMT root fetched from Arbitrum Sepolia, falling back to a pinned GitHub release
+- SMT root fetched from Ethereum mainnet, falling back to a pinned GitHub release
 - MOICA issuer certs shipped embedded; refreshed in background from `moica.nat.gov.tw`
 
 Test a round-trip:
@@ -209,9 +209,9 @@ All via environment variables.
 | `CORS_ORIGIN` | `*` | `Access-Control-Allow-Origin` |
 | `APP_ID` | _(required)_ | Exactly 31-character lowercase hex string identifying the relying party. The prover signs these bytes; the verifier hard-fails on mismatch. Generate with: `APP_ID=$(LC_ALL=C tr -dc '0-9a-f' </dev/urandom \| head -c 31)` |
 | `SMT_ROOT_ENFORCE` | `strict` | `strict` = hard-fail on mismatch; `disabled` = skip (dev only) |
-| `SMT_ROOT_RPC_URL` | `https://sepolia-rollup.arbitrum.io/rpc` | Arbitrum Sepolia JSON-RPC |
-| `SMT_ROOT_CONTRACT` | `0xc461326eb6e46F10A276B0F14BFFf8b256A43FFA` | `SMTRootStorage` address |
-| `SMT_ROOT_GITHUB_REPO` | `moven0831/moica-revocation-smt` | Fallback repo |
+| `SMT_ROOT_RPC_URL` | `https://mainnet.gateway.tenderly.co` | Ethereum mainnet JSON-RPC |
+| `SMT_ROOT_CONTRACT` | `0xf3aAAe2D017dcC9cA901aDC9Da419f1C70362ab1` | `SMTRootStorage` address |
+| `SMT_ROOT_GITHUB_REPO` | `privacy-ethereum/moica-revocation-smt` | Fallback repo |
 | `SMT_ROOT_GITHUB_TAG` | `snapshot-latest` | Fallback release tag |
 | `SMT_ROOT_REFRESH_INTERVAL` | `10m` | SMT refresh cadence |
 | `SMT_ROOT_FETCH_TIMEOUT` | `5s` | Per-source fetch timeout |
@@ -226,7 +226,7 @@ All via environment variables.
 
 Both `smt_root` and `issuer_modulus` use the same pattern: pinned trust anchors, background refresh, stale-on-error.
 
-**SMT revocation root.** Primary: `SMTRootStorage.getRoot(bytes32)` on Arbitrum Sepolia. Fallback: `snapshot-latest` GitHub release body. Startup is fail-closed — if neither source responds, the server refuses to boot. Set `SMT_ROOT_ENFORCE=disabled` for local dev.
+**SMT revocation root.** Primary: `SMTRootStorage.getRoot(bytes32)` on Ethereum mainnet. Fallback: `snapshot-latest` GitHub release body. Startup is fail-closed — if neither source responds, the server refuses to boot. Set `SMT_ROOT_ENFORCE=disabled` for local dev.
 
 **Issuer certificates.** MOICA-G2, MOICA-G3, and both of their GRCA parents ship **embedded** in the binary, with pinned SHA-256 fingerprints. A background fetch from `moica.nat.gov.tw` is *best-effort*: fetched certs must match the pinned fingerprint AND chain-validate to embedded GRCA before they replace the cached record. Fingerprint drift keeps the embedded copy in place and increments `consecutive_fail`. Rotating a cert requires a code release (new embedded bytes + new pinned fingerprint).
 

@@ -115,7 +115,7 @@ func TestOnchainSource_FetchAll(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	src := NewOnchainSource(srv.URL, "0xc461326eb6e46f10a276b0f14bfff8b256a43ffa", 2*time.Second)
+	src := NewOnchainSource(srv.URL, "0xf3aAAe2D017dcC9cA901aDC9Da419f1C70362ab1", 2*time.Second)
 	roots, err := src.FetchAll(context.Background())
 	if err != nil {
 		t.Fatalf("FetchAll: %v", err)

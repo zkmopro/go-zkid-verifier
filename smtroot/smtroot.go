@@ -1,5 +1,5 @@
 // Package smtroot fetches and caches trusted SMT revocation roots published by
-// moven0831/moica-revocation-smt, so link-verify can reject proofs carrying a
+// privacy-ethereum/moica-revocation-smt, so link-verify can reject proofs carrying a
 // stale or forged smt_root public input.
 package smtroot
 
