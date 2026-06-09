@@ -6,9 +6,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/zkmopro/go-zkid-verifier/linkverify"
-	pb "github.com/zkmopro/go-zkid-verifier/proto/zkid/v1"
-	"github.com/zkmopro/go-zkid-verifier/store"
+	"github.com/privacy-ethereum/go-zkid-verifier/linkverify"
+	pb "github.com/privacy-ethereum/go-zkid-verifier/proto/zkid/v1"
+	"github.com/privacy-ethereum/go-zkid-verifier/store"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -75,7 +75,7 @@ func (s *Server) LinkVerify(ctx context.Context, req *pb.LinkVerifyRequest) (*pb
 
 	result, err := s.service.VerifyAndRecord(ctx, linkverify.Request{
 		CertChainProof: req.CertChainProof,
-		UserSigProof: req.UserSigProof,
+		UserSigProof:   req.UserSigProof,
 		ProofType:      pt,
 	})
 	if err != nil {

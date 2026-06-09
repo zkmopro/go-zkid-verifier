@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/zkmopro/go-zkid-verifier/store"
+	"github.com/privacy-ethereum/go-zkid-verifier/store"
 )
 
 func TestWriteStoreErrorStatusCodes(t *testing.T) {

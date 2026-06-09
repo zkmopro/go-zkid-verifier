@@ -7,8 +7,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/zkmopro/go-zkid-verifier/linkverify"
-	"github.com/zkmopro/go-zkid-verifier/store"
+	"github.com/privacy-ethereum/go-zkid-verifier/linkverify"
+	"github.com/privacy-ethereum/go-zkid-verifier/store"
 )
 
 func linkVerify(service *linkverify.Service) http.HandlerFunc {
@@ -33,7 +33,7 @@ func linkVerify(service *linkverify.Service) http.HandlerFunc {
 
 		result, err := service.VerifyAndRecord(r.Context(), linkverify.Request{
 			CertChainProof: req.CertChainProof,
-			UserSigProof: req.UserSigProof,
+			UserSigProof:   req.UserSigProof,
 			ProofType:      pt,
 		})
 		if err != nil {

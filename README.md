@@ -17,7 +17,7 @@ Every `/link-verify` call checks one cert-chain proof (RSA-2048 or RSA-4096) plu
 The Rust crate fetches the zkID source via Cargo. The C++ witness-calculator artifacts are bundled inside the dependency — no local zkID clone or Yarn/circom toolchain required.
 
 ```bash
-git clone https://github.com/zkmopro/go-zkid-verifier.git
+git clone https://github.com/privacy-ethereum/go-zkid-verifier.git
 cd go-zkid-verifier
 make build            # downloads artifacts, builds Rust + Go binaries
 cp .env.example .env

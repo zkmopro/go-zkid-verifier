@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zkmopro/go-zkid-verifier/challenge"
+	"github.com/privacy-ethereum/go-zkid-verifier/challenge"
 )
 
 func TestCreateChallenge(t *testing.T) {

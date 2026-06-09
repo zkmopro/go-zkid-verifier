@@ -13,15 +13,15 @@ import (
 	"unicode/utf8"
 
 	"github.com/joho/godotenv"
-	"github.com/zkmopro/go-zkid-verifier/challenge"
-	zkgrpc "github.com/zkmopro/go-zkid-verifier/grpc"
-	"github.com/zkmopro/go-zkid-verifier/httpapi"
-	"github.com/zkmopro/go-zkid-verifier/issuercert"
-	"github.com/zkmopro/go-zkid-verifier/keymanager"
-	"github.com/zkmopro/go-zkid-verifier/linkverify"
-	pb "github.com/zkmopro/go-zkid-verifier/proto/zkid/v1"
-	"github.com/zkmopro/go-zkid-verifier/smtroot"
-	"github.com/zkmopro/go-zkid-verifier/store"
+	"github.com/privacy-ethereum/go-zkid-verifier/challenge"
+	zkgrpc "github.com/privacy-ethereum/go-zkid-verifier/grpc"
+	"github.com/privacy-ethereum/go-zkid-verifier/httpapi"
+	"github.com/privacy-ethereum/go-zkid-verifier/issuercert"
+	"github.com/privacy-ethereum/go-zkid-verifier/keymanager"
+	"github.com/privacy-ethereum/go-zkid-verifier/linkverify"
+	pb "github.com/privacy-ethereum/go-zkid-verifier/proto/zkid/v1"
+	"github.com/privacy-ethereum/go-zkid-verifier/smtroot"
+	"github.com/privacy-ethereum/go-zkid-verifier/store"
 	"google.golang.org/grpc"
 )
 
@@ -90,11 +90,11 @@ func main() {
 		log.Fatalf("issuer cert provider: %v", err)
 	}
 	verifier := &linkverify.Verifier{
-		KeysDir:             keysDir,
-		SmtRoot:             provider,
-		IssuerCert:          issuerProvider,
+		KeysDir:       keysDir,
+		SmtRoot:       provider,
+		IssuerCert:    issuerProvider,
 		ExpectedAppID: appID,
-		Logger:              smtroot.DefaultLogger{},
+		Logger:        smtroot.DefaultLogger{},
 	}
 	if provider != nil {
 		provider.Start(ctx)

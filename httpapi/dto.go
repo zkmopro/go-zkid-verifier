@@ -1,8 +1,8 @@
 package httpapi
 
 import (
-	"github.com/zkmopro/go-zkid-verifier/linkverify"
-	"github.com/zkmopro/go-zkid-verifier/verifier"
+	"github.com/privacy-ethereum/go-zkid-verifier/linkverify"
+	"github.com/privacy-ethereum/go-zkid-verifier/verifier"
 )
 
 type VerifySuccessResponse struct {
@@ -30,5 +30,5 @@ type VerifyFailResponse struct {
 type LinkVerifyRequest struct {
 	CertChainType  string `json:"cert_chain_type"`
 	CertChainProof []byte `json:"cert_chain_proof"`
-	UserSigProof []byte `json:"user_sig_proof"`
+	UserSigProof   []byte `json:"user_sig_proof"`
 }

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zkmopro/go-zkid-verifier/linkverify"
-	"github.com/zkmopro/go-zkid-verifier/store"
-	"github.com/zkmopro/go-zkid-verifier/verifier"
+	"github.com/privacy-ethereum/go-zkid-verifier/linkverify"
+	"github.com/privacy-ethereum/go-zkid-verifier/store"
+	"github.com/privacy-ethereum/go-zkid-verifier/verifier"
 )
 
 type fakeVerifier struct {
@@ -73,10 +73,9 @@ func validReq() LinkVerifyRequest {
 	return LinkVerifyRequest{
 		CertChainType:  "rs2048",
 		CertChainProof: []byte("x"),
-		UserSigProof: []byte("x"),
+		UserSigProof:   []byte("x"),
 	}
 }
-
 
 func TestLinkVerify_SmtRootMismatchReturns409(t *testing.T) {
 	c := futureChallenge("c-1")

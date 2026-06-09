@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/zkmopro/go-zkid-verifier/issuercert"
+	"github.com/privacy-ethereum/go-zkid-verifier/issuercert"
 )
 
 func issuerCertStatus(provider *issuercert.Provider) http.HandlerFunc {

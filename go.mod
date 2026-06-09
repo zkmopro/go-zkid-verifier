@@ -1,4 +1,4 @@
-module github.com/zkmopro/go-zkid-verifier
+module github.com/privacy-ethereum/go-zkid-verifier
 
 go 1.25.0
 

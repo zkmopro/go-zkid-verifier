@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/zkmopro/go-zkid-verifier/issuercert"
-	"github.com/zkmopro/go-zkid-verifier/smtroot"
-	"github.com/zkmopro/go-zkid-verifier/verifier"
+	"github.com/privacy-ethereum/go-zkid-verifier/issuercert"
+	"github.com/privacy-ethereum/go-zkid-verifier/smtroot"
+	"github.com/privacy-ethereum/go-zkid-verifier/verifier"
 )
 
 type Verifier struct {
-	KeysDir             string
-	SmtRoot             *smtroot.Provider
-	IssuerCert          *issuercert.Provider
+	KeysDir       string
+	SmtRoot       *smtroot.Provider
+	IssuerCert    *issuercert.Provider
 	ExpectedAppID string // 31-char UTF-8 string; compared constant-time against parsed proof
-	Logger              smtroot.Logger
+	Logger        smtroot.Logger
 }
 
 // Result holds everything the handler needs to respond.
