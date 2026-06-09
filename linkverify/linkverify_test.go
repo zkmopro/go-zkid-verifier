@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zkmopro/go-zkid-verifier/smtroot"
-	"github.com/zkmopro/go-zkid-verifier/store"
-	"github.com/zkmopro/go-zkid-verifier/verifier"
+	"github.com/privacy-ethereum/go-zkid-verifier/smtroot"
+	"github.com/privacy-ethereum/go-zkid-verifier/store"
+	"github.com/privacy-ethereum/go-zkid-verifier/verifier"
 )
 
 func resolveKeysDir(t *testing.T) string {

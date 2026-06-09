@@ -3,10 +3,10 @@ package httpapi
 import (
 	"net/http"
 
-	"github.com/zkmopro/go-zkid-verifier/issuercert"
-	"github.com/zkmopro/go-zkid-verifier/linkverify"
-	"github.com/zkmopro/go-zkid-verifier/smtroot"
-	"github.com/zkmopro/go-zkid-verifier/store"
+	"github.com/privacy-ethereum/go-zkid-verifier/issuercert"
+	"github.com/privacy-ethereum/go-zkid-verifier/linkverify"
+	"github.com/privacy-ethereum/go-zkid-verifier/smtroot"
+	"github.com/privacy-ethereum/go-zkid-verifier/store"
 )
 
 func NewRouter(service *linkverify.Service, s store.Store, smtProvider *smtroot.Provider, issuerProvider *issuercert.Provider, appID, debugToken string) http.Handler {

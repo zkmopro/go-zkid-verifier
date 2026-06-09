@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/zkmopro/go-zkid-verifier/smtroot"
+	"github.com/privacy-ethereum/go-zkid-verifier/smtroot"
 )
 
 type IssuerID = smtroot.IssuerID
