@@ -36,7 +36,7 @@ type VerificationRecord struct {
 }
 
 // Store is the combined interface for challenge + verification persistence.
-// BBS teams implement this interface against their own DB.
+// Online forum teams implement this interface against their own DB.
 // The SQLite implementation in sqlite.go is the reference.
 type Store interface {
 	// CreateChallenge generates and persists a new challenge.
