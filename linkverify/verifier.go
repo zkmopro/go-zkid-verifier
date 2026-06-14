@@ -56,7 +56,7 @@ type AppIDOutcome struct {
 	Observed string `json:"observed"`
 }
 
-// ChallengeOutcome reports whether the per-session challenge in the device-sig
+// ChallengeOutcome reports whether the per-session challenge in the user-sig
 // proof matches the value the verifier issued for this challenge.
 type ChallengeOutcome struct {
 	Match    bool   `json:"match"`

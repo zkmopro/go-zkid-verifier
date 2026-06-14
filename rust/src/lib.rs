@@ -62,7 +62,7 @@ pub extern "C" fn zk_last_error() -> *const std::os::raw::c_char {
     LAST_ERROR.with(|e| e.borrow().as_ptr())
 }
 
-/// Link-verify: verify cert-chain + device-sig proofs and check pk_commit equality.
+/// Link-verify: verify cert-chain + user-sig proofs and check pk_commit equality.
 ///
 /// Reads from {base_dir}/keys/:
 ///   - cert_chain proof (rs2048 or rs4096 depending on cert_chain_type)
@@ -107,7 +107,7 @@ pub extern "C" fn zk_link_verify(
             path_config.key_path(cc_vk_file),
         );
 
-        // Verify device-sig proof
+        // Verify user-sig proof
         let ds_public_values = verify_circuit(
             path_config.artifact_path(UserSigRsa2048::PROOF),
             path_config.key_path(UserSigRsa2048::VERIFYING_KEY),

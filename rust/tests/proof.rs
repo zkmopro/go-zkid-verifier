@@ -205,7 +205,7 @@ mod proof_e2e {
             self
         }
 
-        /// Generate ZK proofs locally; return raw cert-chain and device-sig proof bytes.
+        /// Generate ZK proofs locally; return raw cert-chain and user-sig proof bytes.
         fn prove(self) -> (Vec<u8>, Vec<u8>) {
             let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 

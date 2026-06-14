@@ -18,7 +18,7 @@ service ZkIDVerifier {
 message CreateChallengeRequest {}
 
 message CreateChallengeResponse {
-  // Per-session challenge field element (decimal). Bound into the device-sig
+  // Per-session challenge field element (decimal). Bound into the user-sig
   // proof via a Semaphore-style dummy square; submitted back at /link-verify.
   string challenge = 1;
   // Application's stable APP_ID, 62-char lowercase hex.

@@ -59,7 +59,7 @@ func (*CreateChallengeRequest) Descriptor() ([]byte, []int) {
 
 type CreateChallengeResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Per-session challenge field element (decimal). Bound into the device-sig
+	// Per-session challenge field element (decimal). Bound into the user-sig
 	// proof via a Semaphore-style dummy square; submitted back at /link-verify.
 	Challenge string `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
 	// Application's stable APP_ID, 62-char lowercase hex.

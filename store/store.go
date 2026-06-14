@@ -19,7 +19,7 @@ const AppIDLen = 31
 
 // Challenge is a per-session replay nonce: a decimal field element that is
 // both the session key the client submits to /link-verify and the value bound
-// into the device-sig proof.
+// into the user-sig proof.
 type Challenge struct {
 	Challenge string    `json:"challenge"`
 	ExpiresAt time.Time `json:"expires_at"`

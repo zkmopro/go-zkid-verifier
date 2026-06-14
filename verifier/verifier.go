@@ -51,7 +51,7 @@ func lastSignals() *PublicSignals {
 	return &s
 }
 
-// LinkVerify verifies cert-chain + device-sig proofs and checks pk_commit linkage.
+// LinkVerify verifies cert-chain + user-sig proofs and checks pk_commit linkage.
 //
 // Reads from {baseDir}/keys/:
 //   - cert_chain proof (rs2048 or rs4096 depending on certChainType)

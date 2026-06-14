@@ -95,7 +95,7 @@ jobs:
         run: |
           TMPDIR=$(mktemp -d)
           mkdir -p "$TMPDIR/keys"
-          cp tests/artifacts/cc2048_ds2048/*.bin "$TMPDIR/keys/"
+          cp tests/artifacts/cc2048_us2048/*.bin "$TMPDIR/keys/"
           ln -s "$(pwd)/keys/cert_chain_rs2048_verifying.key" "$TMPDIR/keys/"
           ln -s "$(pwd)/keys/user_sig_rs2048_verifying.key" "$TMPDIR/keys/"
           ZK_BASE_DIR="$TMPDIR" go test ./verifier/ -v -run TestLinkVerifyRS2048
@@ -106,7 +106,7 @@ jobs:
         run: |
           TMPDIR=$(mktemp -d)
           mkdir -p "$TMPDIR/keys"
-          cp tests/artifacts/cc4096_ds2048/*.bin "$TMPDIR/keys/"
+          cp tests/artifacts/cc4096_us2048/*.bin "$TMPDIR/keys/"
           ln -s "$(pwd)/keys/cert_chain_rs4096_verifying.key" "$TMPDIR/keys/"
           ln -s "$(pwd)/keys/user_sig_rs2048_verifying.key" "$TMPDIR/keys/"
           ZK_BASE_DIR="$TMPDIR" go test ./verifier/ -v -run TestLinkVerifyRS4096

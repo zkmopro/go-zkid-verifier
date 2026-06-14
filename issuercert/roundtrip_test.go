@@ -15,7 +15,7 @@ import (
 
 func TestLimbConventionMatchesCircuit_RS2048(t *testing.T) {
 	runLimbConvention(t, verifier.CertChainRS2048, 2048, issuercert.LimbsRS2048,
-		"cc2048_ds2048",
+		"cc2048_us2048",
 		[]string{"cert_chain_rs2048_proof.bin", "user_sig_rs2048_proof.bin"},
 		[]string{"cert_chain_rs2048_verifying.key", "user_sig_rs2048_verifying.key"},
 	)
@@ -23,7 +23,7 @@ func TestLimbConventionMatchesCircuit_RS2048(t *testing.T) {
 
 func TestLimbConventionMatchesCircuit_RS4096(t *testing.T) {
 	runLimbConvention(t, verifier.CertChainRS4096, 4096, issuercert.LimbsRS4096,
-		"cc4096_ds2048",
+		"cc4096_us2048",
 		[]string{"cert_chain_rs4096_proof.bin", "user_sig_rs2048_proof.bin"},
 		[]string{"cert_chain_rs4096_verifying.key", "user_sig_rs2048_verifying.key"},
 	)
