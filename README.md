@@ -339,3 +339,12 @@ cp rust/target/x86_64-unknown-linux-gnu/release/libzk_verifier.a lib/x86_64-unkn
 ### CI
 
 `.github/workflows/ci.yml` runs a pure-Go `challenge-server` job (CGO off, `./store/`) and a `verifier` matrix (macOS + Linux) that downloads pre-built circom artifacts from the zkID GitHub release, builds the Rust lib, downloads verifying keys, and runs the full test suite including RS2048 / RS4096 FFI fixtures. Trust-anchor packages use injected static providers so CI never hits live endpoints.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
